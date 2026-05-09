@@ -1,0 +1,57 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  background-color: #f3f4f6;
+  color: #1f2937;
+}
+
+/* --- PRINTING & SCROLLBAR FIXES --- */
+
+@media print {
+  /* This prevents the app from trapping the invoice in a small box, removing print sliders */
+  html, body, #root, main, div {
+    height: auto !important;
+    overflow: visible !important;
+  }
+}
+
+/* This hides the ugly gray slider/scrollbar everywhere, but you can still scroll normally! */
+::-webkit-scrollbar {
+  width: 0px !important;
+  background: transparent !important;
+}
+
+/* --- MOBILE RESPONSIVE CHEAT CODE --- */
+@media (max-width: 768px) {
+  /* 1. Shrink all big paddings to save screen space */
+  .p-8 {
+    padding: 1rem !important;
+  }
+  
+  /* 2. Shrink huge titles */
+  .text-3xl {
+    font-size: 1.5rem !important;
+    line-height: 2rem !important;
+  }
+
+  /* 3. Make ALL tables swipeable sideways so they don't break the screen */
+  table {
+    display: block !important;
+    overflow-x: auto !important;
+    white-space: nowrap !important;
+    width: 100% !important;
+    -webkit-overflow-scrolling: touch; /* Smooth scrolling on iPhones */
+  }
+  
+  /* 4. Force all multi-column forms to stack vertically */
+  form .grid {
+    grid-template-columns: 1fr !important;
+  }
+  
+  /* 5. Stack big metric cards on the Dashboard */
+  .grid-cols-2, .grid-cols-3, .grid-cols-4 {
+    grid-template-columns: 1fr !important;
+  }
+}
