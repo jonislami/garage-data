@@ -1,510 +1,579 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { Plus, Trash2, Wrench, Package, FileText, X, CheckCircle, Car, Calendar, Filter } from 'lucide-react';
-import { useSync } from '../contexts/SyncContext'; 
-import { useLanguage } from '../LanguageContext'; 
-import { translations } from '../translations'; 
+import { Plus, Trash2, Wrench, Package, FileText, X, Check, Pencil } from 'lucide-react';
+import { useSync } from '../contexts/SyncContext';
+import { useLanguage } from '../LanguageContext';
+import { translations } from '../translations';
+import { PageHeader, SearchInput, EmptyState, TableSkeleton, StatusBadge, useToast } from '../components/ui';
+import { formatMoney, formatDate, todayISO, rowDate, invoiceNumber, matches } from '../lib/format';
+import { vehicleName } from '../lib/vehicle';
+
+const EMPTY_ITEM = { category: 'labor', description: '', price: '', quantity: 1, unit: 'pcs', cost_price: 0, inventory_id: null };
+
+/* Searchable stock picker – finds parts by name OR part number */
+function StockPicker({ inventory, onPick, al, currency }) {
+  const [q, setQ] = useState('');
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const close = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, []);
+
+  const results = inventory.filter(i => matches(q, i.part_name, i.part_number, i.brand)).slice(0, 30);
+
+  return (
+    <div ref={ref} className="relative w-full md:w-64">
+      <SearchInput
+        value={q}
+        onChange={v => { setQ(v); setOpen(true); }}
+        placeholder={al ? 'Kërko në stok (emri / nr. pjesës)' : 'Search stock (name / part no.)'}
+      />
+      {open && (
+        <div className="absolute z-30 mt-1 w-full md:w-96 max-h-72 overflow-y-auto card shadow-lg">
+          {results.length === 0 ? (
+            <p className="px-3 py-3 text-sm text-gray-500">{al ? 'Asnjë pjesë nuk u gjet.' : 'No matching parts.'}</p>
+          ) : results.map(item => (
+            <button
+              key={item.id}
+              type="button"
+              disabled={item.quantity <= 0}
+              onClick={() => { onPick(item); setQ(''); setOpen(false); }}
+              className="w-full text-left px-3 py-2 flex items-center justify-between gap-3 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed border-b border-gray-100 last:border-0"
+            >
+              <span className="min-w-0">
+                <span className="block text-sm text-gray-900 truncate">{item.part_name}</span>
+                {item.part_number && <span className="block text-xs font-code text-gray-500">{item.part_number}</span>}
+              </span>
+              <span className="text-right shrink-0">
+                <span className="block text-sm font-mono">{formatMoney(item.unit_price, currency)}</span>
+                <span className={`block text-xs ${item.quantity <= 0 ? 'text-red-600' : 'text-gray-500'}`}>
+                  {item.quantity} {al ? 'në stok' : 'in stock'}
+                </span>
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function Services() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const editId = searchParams.get('edit'); 
-  
-  const { isOnline, addToQueue } = useSync(); 
-  
+  const editId = searchParams.get('edit');
+  const wantsNew = searchParams.get('new');
+  const toast = useToast();
+
+  const { isOnline, addToQueue } = useSync();
   const { language } = useLanguage();
   const t = translations[language] || translations.en;
+  const al = language === 'al';
 
   const [services, setServices] = useState([]);
-  const [cars, setCars] = useState([]); 
+  const [cars, setCars] = useState([]);
   const [inventory, setInventory] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [showForm, setShowForm] = useState(!!wantsNew);
   const [currency, setCurrency] = useState('€');
-  
-  const [timeFilter, setTimeFilter] = useState('all'); 
-  
+
+  const [search, setSearch] = useState('');
+  const [timeFilter, setTimeFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
+
   const [selectedCarId, setSelectedCarId] = useState('');
   const [jobStatus, setJobStatus] = useState('Pending');
-  const [serviceDate, setServiceDate] = useState(new Date().toISOString().split('T')[0]); 
-  
+  const [serviceDate, setServiceDate] = useState(todayISO());
   const [lineItems, setLineItems] = useState([]);
-  const [newItem, setNewItem] = useState({ category: 'labor', description: '', price: '', quantity: 1, unit: 'pcs', cost_price: 0, inventory_id: null });
-  
+  const [newItem, setNewItem] = useState(EMPTY_ITEM);
   const [discount, setDiscount] = useState('');
   const [invoiceNotes, setInvoiceNotes] = useState('');
 
-  const statusTranslations = {
-    'Pending': language === 'al' ? 'Në Pritje' : 'Pending',
-    'In Progress': language === 'al' ? 'Në Proces' : 'In Progress',
-    'Completed': language === 'al' ? 'Përfunduar' : 'Completed'
-  };
+  const money = v => formatMoney(v, currency);
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { fetchData(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+
+  useEffect(() => {
+    if (wantsNew && !editId) setShowForm(true);
+  }, [wantsNew, editId]);
 
   useEffect(() => {
     if (editId && services.length > 0) {
-      const jobToEdit = services.find(s => s.id === editId);
-      if (jobToEdit) {
+      const job = services.find(s => s.id === editId);
+      if (job) {
         setShowForm(true);
-        setSelectedCarId(jobToEdit.car_id);
-        setJobStatus(jobToEdit.status);
-        setDiscount(jobToEdit.discount || '');
-        setInvoiceNotes(jobToEdit.invoice_notes || '');
-        setServiceDate(jobToEdit.service_date || jobToEdit.created_at?.split('T')[0] || new Date().toISOString().split('T')[0]); 
-        
-        const items = jobToEdit.service_items?.map(i => ({ 
-          category: i.category, description: i.description, price: i.price, 
+        setSelectedCarId(job.car_id);
+        setJobStatus(job.status);
+        setDiscount(job.discount || '');
+        setInvoiceNotes(job.invoice_notes || '');
+        setServiceDate(job.service_date || job.created_at?.split('T')[0] || todayISO());
+        setLineItems((job.service_items || []).map(i => ({
+          category: i.category, description: i.description, price: i.price,
           quantity: i.quantity || 1, unit: i.unit || 'pcs',
-          cost_price: i.cost_price || 0, inventory_id: null 
-        })) || [];
-        setLineItems(items);
+          cost_price: i.cost_price || 0, inventory_id: null,
+        })));
+        window.scrollTo({ top: 0, behavior: 'smooth' });
       }
     }
   }, [editId, services]);
 
+  function loadCache() {
+    const read = k => { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch { return null; } };
+    const s = read('sonic_services_cache'); if (s) setServices(s);
+    const c = read('sonic_cars_cache'); if (c) setCars(c);
+    const i = read('sonic_inventory_cache'); if (i) setInventory(i);
+  }
+
   async function fetchData() {
     setLoading(true);
-
-    if (!isOnline) {
-      const cachedServices = localStorage.getItem('sonic_services_cache');
-      const cachedCars = localStorage.getItem('sonic_cars_cache');
-      const cachedInv = localStorage.getItem('sonic_inventory_cache');
-
-      if (cachedServices) setServices(JSON.parse(cachedServices));
-      if (cachedCars) setCars(JSON.parse(cachedCars));
-      if (cachedInv) setInventory(JSON.parse(cachedInv));
-
-      setLoading(false);
-      return; 
-    }
+    if (!isOnline) { loadCache(); setLoading(false); return; }
 
     try {
       const { data: { user } } = await supabase.auth.getUser();
       const { data: profile } = await supabase.from('profiles').select('workshop_id').eq('id', user.id).single();
       if (profile) {
-        const { data: shop } = await supabase.from('workshops').select('currency').eq('id', profile.workshop_id).single();
-        setCurrency(shop?.currency || '€');
-        
-        const { data: serviceData } = await supabase.from('services')
-          .select(`*, cars ( make, model, plate ), service_items ( description, category, price, cost_price, quantity, unit )`)
-          .eq('workshop_id', profile.workshop_id).order('service_date', { ascending: false });
-        setServices(serviceData || []);
-        localStorage.setItem('sonic_services_cache', JSON.stringify(serviceData || []));
-        
-        // NDRYSHIMI KËTU: Shtova clients(full_name) në select për të marrë emrin e klientit
-        const { data: carData } = await supabase.from('cars').select('id, make, model, plate, clients(full_name)').eq('workshop_id', profile.workshop_id).order('make');
-        setCars(carData || []);
-        localStorage.setItem('sonic_cars_cache', JSON.stringify(carData || []));
-        
-        const { data: invData } = await supabase.from('inventory').select('*').eq('workshop_id', profile.workshop_id).order('part_name');
-        setInventory(invData || []);
-        localStorage.setItem('sonic_inventory_cache', JSON.stringify(invData || []));
+        const wid = profile.workshop_id;
+        const [shop, serviceRes, carRes, invRes] = await Promise.all([
+          supabase.from('workshops').select('currency').eq('id', wid).single(),
+          supabase.from('services')
+            .select('*, cars ( make, model, plate, clients ( full_name ) ), service_items ( description, category, price, cost_price, quantity, unit )')
+            .eq('workshop_id', wid)
+            .order('service_date', { ascending: false, nullsFirst: false })
+            .order('created_at', { ascending: false }),
+          supabase.from('cars').select('id, make, model, plate, clients(full_name)').eq('workshop_id', wid).order('make'),
+          supabase.from('inventory').select('*').eq('workshop_id', wid).order('part_name'),
+        ]);
+        setCurrency(shop.data?.currency || '€');
+        setServices(serviceRes.data || []);
+        setCars(carRes.data || []);
+        setInventory(invRes.data || []);
+        localStorage.setItem('sonic_services_cache', JSON.stringify(serviceRes.data || []));
+        localStorage.setItem('sonic_cars_cache', JSON.stringify(carRes.data || []));
+        localStorage.setItem('sonic_inventory_cache', JSON.stringify(invRes.data || []));
       }
     } catch (error) {
-      console.error("Fetch error (fallback to cache):", error);
-      const cachedServices = localStorage.getItem('sonic_services_cache');
-      if (cachedServices) setServices(JSON.parse(cachedServices));
+      console.error('Fetch error (fallback to cache):', error);
+      loadCache();
     }
     setLoading(false);
   }
 
   function handleAddLineItem() {
-    if (!newItem.description || !newItem.price || !newItem.quantity) return;
-    setLineItems([...lineItems, { ...newItem }]);
-    setNewItem({ category: 'labor', description: '', price: '', quantity: 1, unit: 'pcs', cost_price: 0, inventory_id: null });
-  }
-
-  function handleInventorySelect(e) {
-    const item = inventory.find(i => i.id === e.target.value);
-    if (item) {
-      setNewItem({ 
-        category: 'part', description: item.part_name, price: item.unit_price, 
-        quantity: 1, unit: 'pcs', cost_price: item.cost_price || 0, inventory_id: item.id 
-      });
+    if (!newItem.description || newItem.price === '' || !newItem.quantity) {
+      toast.error(al ? 'Plotëso përshkrimin, sasinë dhe çmimin.' : 'Fill in description, quantity and price.');
+      return;
     }
-    e.target.value = ""; 
+    setLineItems([...lineItems, { ...newItem }]);
+    setNewItem(EMPTY_ITEM);
   }
 
-  function calculateSubtotal() { return lineItems.reduce((sum, item) => sum + (Number(item.price) * Number(item.quantity)), 0); }
-  function calculateTotal() { return calculateSubtotal() - Number(discount || 0); }
+  function handleStockPick(item) {
+    setNewItem({
+      category: 'part',
+      description: item.part_number ? `${item.part_name} (${item.part_number})` : item.part_name,
+      price: item.unit_price, quantity: 1, unit: 'pcs',
+      cost_price: item.cost_price || 0, inventory_id: item.id,
+    });
+  }
+
+  const subtotal = lineItems.reduce((sum, i) => sum + Number(i.price) * Number(i.quantity), 0);
+  const total = subtotal - Number(discount || 0);
 
   function handleCancel() {
-    setShowForm(false); navigate('/services'); setSelectedCarId(''); setLineItems([]); 
-    setJobStatus('Pending'); setDiscount(''); setInvoiceNotes(''); 
-    setServiceDate(new Date().toISOString().split('T')[0]); 
+    setShowForm(false); navigate('/services'); setSelectedCarId(''); setLineItems([]);
+    setNewItem(EMPTY_ITEM); setJobStatus('Pending'); setDiscount(''); setInvoiceNotes('');
+    setServiceDate(todayISO());
   }
 
   async function handleDeleteService(id) {
-    const confirmMsg = language === 'al' 
-      ? "Jeni i sigurt që dëshironi ta fshini këtë fletë pune? Ky veprim nuk mund të zhbëhet." 
-      : "Are you sure you want to delete this job ticket? This cannot be undone.";
+    const msg = al
+      ? 'Jeni i sigurt që dëshironi ta fshini këtë punë? Ky veprim nuk mund të zhbëhet.'
+      : 'Delete this job? This cannot be undone.';
+    if (!window.confirm(msg)) return;
 
-    if (window.confirm(confirmMsg)) {
-      if (!isOnline) {
-        setServices(prev => prev.filter(s => s.id !== id));
-        
-        const existingCache = JSON.parse(localStorage.getItem('sonic_services_cache') || '[]');
-        const updatedCache = existingCache.filter(s => s.id !== id);
-        localStorage.setItem('sonic_services_cache', JSON.stringify(updatedCache));
-
-        addToQueue('services', 'DELETE', { id });
-        alert(language === 'al' ? 'Offline: Fleta u fshi lokalisht. Do të sinkronizohet kur të kthehet interneti.' : 'Offline: Service deleted locally. Will sync to cloud when internet returns.');
-        return; 
-      }
-
-      try {
-        await supabase.from('services').delete().eq('id', id); fetchData();
-      } catch (error) {
-        alert((language === 'al' ? 'Gabim gjatë fshirjes: ' : 'Error deleting: ') + error.message);
-      }
+    if (!isOnline) {
+      setServices(prev => prev.filter(s => s.id !== id));
+      const cache = JSON.parse(localStorage.getItem('sonic_services_cache') || '[]');
+      localStorage.setItem('sonic_services_cache', JSON.stringify(cache.filter(s => s.id !== id)));
+      addToQueue('services', 'DELETE', { id });
+      toast.info(al ? 'Offline: u fshi lokalisht, do të sinkronizohet më vonë.' : 'Offline: deleted locally, will sync later.');
+      return;
     }
+    const { error } = await supabase.from('services').delete().eq('id', id);
+    if (error) return toast.error((al ? 'Gabim gjatë fshirjes: ' : 'Error deleting: ') + error.message);
+    toast.success(al ? 'Puna u fshi.' : 'Job deleted.');
+    fetchData();
   }
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!selectedCarId) return alert(language === 'al' ? 'Ju lutem zgjidhni një veturë.' : 'Please select a car.');
-    
+    if (!selectedCarId) return toast.error(al ? 'Ju lutem zgjidhni një veturë.' : 'Please select a vehicle.');
+    if (lineItems.length === 0 && newItem.description) {
+      return toast.error(al ? 'Klikoni "Shto" për të shtuar artikullin.' : 'Click "Add" to add the line item first.');
+    }
+    setSaving(true);
     try {
       let workshopId = localStorage.getItem('sonic_workshop_id');
-
       if (!workshopId && isOnline) {
         const { data: { user } } = await supabase.auth.getUser();
         const { data: profile } = await supabase.from('profiles').select('workshop_id').eq('id', user.id).single();
-        if (profile?.workshop_id) {
-          workshopId = profile.workshop_id;
-          localStorage.setItem('sonic_workshop_id', workshopId); 
-        }
+        if (profile?.workshop_id) { workshopId = profile.workshop_id; localStorage.setItem('sonic_workshop_id', workshopId); }
       }
+      if (!workshopId) throw new Error(al ? 'Nuk u gjet ID e ofiçinës. Lidhuni me internet.' : 'Workshop ID not found. Please connect to the internet.');
 
-      if (!workshopId) throw new Error(language === 'al' ? "Nuk u gjet ID e Ofiçinës. Lidhu pak me Wi-Fi." : "Could not find Workshop ID. Please connect to Wi-Fi briefly.");
-
-      const totalCost = calculateTotal();
-      const descTitle = lineItems.length > 0 ? lineItems[0].description : (language === 'al' ? 'Shërbim i Përgjithshëm' : 'General Service'); 
-      const fullDesc = descTitle + (lineItems.length > 1 ? '...' : '');
-
-      const payload = { 
-        car_id: selectedCarId, workshop_id: workshopId, status: jobStatus, 
-        description: fullDesc, cost: totalCost, discount: Number(discount || 0), 
-        invoice_notes: invoiceNotes, service_date: serviceDate 
+      const descTitle = lineItems.length > 0 ? lineItems[0].description : (al ? 'Shërbim i përgjithshëm' : 'General service');
+      const payload = {
+        car_id: selectedCarId, workshop_id: workshopId, status: jobStatus,
+        description: descTitle + (lineItems.length > 1 ? '…' : ''),
+        cost: total, discount: Number(discount || 0),
+        invoice_notes: invoiceNotes, service_date: serviceDate,
       };
+      const selectedCar = cars.find(c => c.id === selectedCarId) || {};
+      const carInfo = { make: selectedCar.make, model: selectedCar.model, plate: selectedCar.plate, clients: selectedCar.clients };
 
       if (!isOnline) {
-        const existingCache = JSON.parse(localStorage.getItem('sonic_services_cache') || '[]');
-        const selectedCar = cars.find(c => c.id === selectedCarId) || {};
-
+        const cache = JSON.parse(localStorage.getItem('sonic_services_cache') || '[]');
         if (editId) {
           addToQueue('services', 'UPDATE', { id: editId, ...payload });
-          
-          const updatedServices = existingCache.map(s => s.id === editId ? { ...s, ...payload, cars: { make: selectedCar.make, model: selectedCar.model, plate: selectedCar.plate } } : s);
-          setServices(updatedServices);
-          localStorage.setItem('sonic_services_cache', JSON.stringify(updatedServices));
-          alert(language === 'al' ? 'Offline: Detajet e shërbimit u përditësuan. (Shënim: Modifikimi i artikujve kërkon internet). Do të sinkronizohet më vonë.' : 'Offline: Service details updated. (Note: Modifying line items requires an internet connection). Will sync when internet returns.');
+          const updated = cache.map(s => s.id === editId ? { ...s, ...payload, cars: carInfo } : s);
+          setServices(updated);
+          localStorage.setItem('sonic_services_cache', JSON.stringify(updated));
+          toast.info(al ? 'Offline: detajet u ruajtën. Ndryshimi i artikujve kërkon internet.' : 'Offline: details saved. Changing line items requires internet.');
         } else {
-          const newServiceId = crypto.randomUUID();
-          const fullPayload = { id: newServiceId, ...payload };
-          
-          addToQueue('services', 'INSERT', fullPayload);
-
+          const newId = crypto.randomUUID();
+          const full = { id: newId, ...payload };
+          addToQueue('services', 'INSERT', full);
+          lineItems.forEach(item => addToQueue('service_items', 'INSERT', {
+            service_id: newId, description: item.description, category: item.category,
+            price: item.price, quantity: item.quantity, unit: item.unit, cost_price: item.cost_price,
+          }));
+          let inv = [...inventory];
           lineItems.forEach(item => {
-            addToQueue('service_items', 'INSERT', { 
-              service_id: newServiceId, description: item.description, category: item.category, 
-              price: item.price, quantity: item.quantity, unit: item.unit, cost_price: item.cost_price 
-            });
-          });
-
-          let currentInvCache = [...inventory];
-          lineItems.forEach(item => {
-            if (item.inventory_id) {
-              const invItem = currentInvCache.find(i => i.id === item.inventory_id);
-              if (invItem && invItem.quantity > 0) {
-                const newQty = invItem.quantity - Number(item.quantity);
-                addToQueue('inventory', 'UPDATE', { id: item.inventory_id, quantity: newQty });
-                currentInvCache = currentInvCache.map(i => i.id === item.inventory_id ? { ...i, quantity: newQty } : i);
-              }
+            if (!item.inventory_id) return;
+            const it = inv.find(i => i.id === item.inventory_id);
+            if (it && it.quantity > 0) {
+              const q = it.quantity - Number(item.quantity);
+              addToQueue('inventory', 'UPDATE', { id: item.inventory_id, quantity: q });
+              inv = inv.map(i => i.id === item.inventory_id ? { ...i, quantity: q } : i);
             }
           });
-          setInventory(currentInvCache);
-          localStorage.setItem('sonic_inventory_cache', JSON.stringify(currentInvCache));
-
-          const optimisticService = {
-            ...fullPayload,
-            cars: { make: selectedCar.make, model: selectedCar.model, plate: selectedCar.plate },
-            service_items: lineItems,
-            created_at: new Date().toISOString()
-          };
-
-          setServices([optimisticService, ...existingCache]);
-          localStorage.setItem('sonic_services_cache', JSON.stringify([optimisticService, ...existingCache]));
-          alert(language === 'al' ? 'Offline: Fleta e re e punës u ruajt lokalisht! Do të sinkronizohet kur të kthehet interneti.' : 'Offline: New service ticket and items saved locally! Will sync when internet returns.');
+          setInventory(inv);
+          localStorage.setItem('sonic_inventory_cache', JSON.stringify(inv));
+          const optimistic = { ...full, cars: carInfo, service_items: lineItems, created_at: new Date().toISOString() };
+          setServices([optimistic, ...cache]);
+          localStorage.setItem('sonic_services_cache', JSON.stringify([optimistic, ...cache]));
+          toast.info(al ? 'Offline: puna u ruajt lokalisht dhe do të sinkronizohet.' : 'Offline: job saved locally and will sync.');
         }
-
         handleCancel();
-        return; 
+        return;
       }
 
       let serviceId = editId;
       if (editId) {
-        await supabase.from('services').update(payload).eq('id', editId);
-        await supabase.from('service_items').delete().eq('service_id', editId); 
+        const { error } = await supabase.from('services').update(payload).eq('id', editId);
+        if (error) throw error;
+        const { error: delErr } = await supabase.from('service_items').delete().eq('service_id', editId);
+        if (delErr) throw delErr;
       } else {
         const { data: service, error } = await supabase.from('services').insert([payload]).select().single();
-        if (error) throw error; serviceId = service.id;
+        if (error) throw error;
+        serviceId = service.id;
       }
 
       if (lineItems.length > 0) {
-        const itemsPayload = lineItems.map(item => ({ 
-          service_id: serviceId, description: item.description, category: item.category, 
-          price: item.price, quantity: item.quantity, unit: item.unit, cost_price: item.cost_price 
-        }));
-        await supabase.from('service_items').insert(itemsPayload);
+        const { error } = await supabase.from('service_items').insert(lineItems.map(item => ({
+          service_id: serviceId, description: item.description, category: item.category,
+          price: item.price, quantity: item.quantity, unit: item.unit, cost_price: item.cost_price,
+        })));
+        if (error) throw error;
       }
 
       for (const item of lineItems) {
-        if (item.inventory_id) { 
-          const invItem = inventory.find(i => i.id === item.inventory_id);
-          if (invItem && invItem.quantity > 0) {
-            const newQty = invItem.quantity - Number(item.quantity);
-            await supabase.from('inventory').update({ quantity: newQty }).eq('id', item.inventory_id);
-          }
+        if (!item.inventory_id) continue;
+        const it = inventory.find(i => i.id === item.inventory_id);
+        if (it && it.quantity > 0) {
+          await supabase.from('inventory').update({ quantity: it.quantity - Number(item.quantity) }).eq('id', item.inventory_id);
         }
       }
-      handleCancel(); fetchData(); 
-    } catch (error) { alert((language === 'al' ? 'Gabim gjatë ruajtjes: ' : 'Error saving job: ') + error.message); }
+      toast.success(editId ? (al ? 'Puna u përditësua.' : 'Job updated.') : (al ? 'Puna u ruajt.' : 'Job saved.'));
+      handleCancel();
+      fetchData();
+    } catch (error) {
+      toast.error((al ? 'Gabim gjatë ruajtjes: ' : 'Error saving job: ') + error.message);
+    } finally {
+      setSaving(false);
+    }
   }
 
-  const filteredServices = services.filter(service => {
-    if (timeFilter === 'all') return true;
-    
-    const sDate = new Date(service.service_date || service.created_at || new Date());
+  const filteredServices = useMemo(() => {
     const now = new Date();
-    
-    if (timeFilter === 'today') {
-      return sDate.toDateString() === now.toDateString();
-    }
-    if (timeFilter === 'month') {
-      return sDate.getMonth() === now.getMonth() && sDate.getFullYear() === now.getFullYear();
-    }
-    if (timeFilter === 'year') {
-      return sDate.getFullYear() === now.getFullYear();
-    }
-    return true;
-  });
+    return services.filter(s => {
+      if (statusFilter !== 'all' && s.status !== statusFilter) return false;
+      if (timeFilter !== 'all') {
+        const d = rowDate(s, 'service_date') || now;
+        if (timeFilter === 'today' && d.toDateString() !== now.toDateString()) return false;
+        if (timeFilter === 'month' && !(d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear())) return false;
+        if (timeFilter === 'year' && d.getFullYear() !== now.getFullYear()) return false;
+      }
+      if (!search) return true;
+      return matches(
+        search,
+        s.cars?.make, s.cars?.model, vehicleName(s.cars?.make, s.cars?.model), s.cars?.plate,
+        s.cars?.clients?.full_name, s.description, s.invoice_notes,
+        invoiceNumber(s), String(s.cost),
+        ...(s.service_items || []).map(i => i.description),
+      );
+    });
+  }, [services, search, timeFilter, statusFilter]);
+
+  const unitLabel = u => (al && u === 'pcs' ? 'copë' : al && u === 'hr' ? 'orë' : u);
 
   return (
-    <div className="p-4 md:p-8">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 md:mb-8 gap-4 border-b border-gray-200 pb-6">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-800">{t.page_title_services || (language === 'al' ? 'Fletët e Punës' : 'Job Tickets')}</h1>
-          <p className="text-sm md:text-base text-gray-500 mt-1">{t.page_desc_services || (language === 'al' ? 'Menaxho punët dhe riparimet aktuale' : 'Manage current jobs and repairs')}</p>
-        </div>
-        
-        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-          {!showForm && (
-            <div className="relative flex-1 md:w-48">
-              <Filter size={16} className="absolute left-3 top-3 text-gray-400" />
-              <select 
-                className="w-full pl-9 p-2.5 border border-gray-300 rounded-lg outline-none bg-white font-bold text-gray-600 shadow-sm focus:ring-2 focus:ring-blue-500 cursor-pointer"
-                value={timeFilter} 
-                onChange={e => setTimeFilter(e.target.value)}
-              >
-                <option value="all">📅 {language === 'al' ? 'Të Gjitha' : 'All Time'}</option>
-                <option value="today">🕒 {language === 'al' ? 'Sot' : 'Today'}</option>
-                <option value="month">📆 {language === 'al' ? 'Këtë Muaj' : 'This Month'}</option>
-                <option value="year">📅 {language === 'al' ? 'Këtë Vit' : 'This Year'}</option>
-              </select>
-            </div>
-          )}
-
-          {!showForm && (
-            <button onClick={() => setShowForm(true)} className="flex-1 md:w-auto justify-center bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg flex items-center gap-2 font-bold shadow-md">
-              <Plus size={20} /> {t.new_job || (language === 'al' ? 'Punë e Re' : 'New Job')}
-            </button>
-          )}
-        </div>
-      </div>
+    <div className="page">
+      <PageHeader
+        title={t.page_title_services}
+        subtitle={t.page_desc_services}
+      >
+        {!showForm && (
+          <button onClick={() => setShowForm(true)} className="btn btn-primary">
+            <Plus size={16} /> {t.new_job}
+          </button>
+        )}
+      </PageHeader>
 
       {showForm && (
-        <div className="bg-white rounded-xl shadow-2xl border border-gray-200 mb-8 overflow-hidden animate-fade-in max-w-5xl mx-auto">
-          <div className="bg-gray-50 p-4 md:p-6 border-b flex justify-between items-center">
-            <h2 className="text-xl md:text-2xl font-black text-gray-800 flex items-center gap-2 md:gap-3">
-              <FileText className="text-blue-600" size={24} /> {editId ? (language === 'al' ? 'Ndrysho Fletën' : 'Edit Ticket') : (language === 'al' ? 'Fletë Pune e Re' : 'New Service Ticket')}
+        <form onSubmit={handleSubmit} className="card mb-6 animate-fade-in">
+          <div className="card-header">
+            <h2 className="card-title flex items-center gap-2">
+              <FileText size={16} className="text-gray-400" />
+              {editId ? (al ? 'Ndrysho punën' : 'Edit job') : (al ? 'Punë e re' : 'New job')}
             </h2>
-            <button type="button" onClick={handleCancel} className="text-gray-400 hover:text-red-500 transition-colors bg-white p-2 rounded-full shadow-sm border"><X size={20}/></button>
+            <button type="button" onClick={handleCancel} className="btn-icon" aria-label="Close"><X size={16} /></button>
           </div>
-          
-          <div className="p-4 md:p-6">
-            
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 md:gap-6 mb-6 md:mb-8 bg-blue-50/50 p-4 rounded-lg border border-blue-100">
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-2 flex items-center gap-1"><Car size={14}/> {language === 'al' ? 'Vetura' : 'Vehicle'}</label>
-                <select className="w-full p-3 border border-gray-300 rounded-lg bg-white outline-none focus:ring-2 focus:ring-blue-500" value={selectedCarId} onChange={e => setSelectedCarId(e.target.value)}>
-                  <option value="">{language === 'al' ? '-- Zgjidh Veturën --' : '-- Choose Car --'}</option>
-                  
-                  {/* NDRYSHIMI KËTU: Tani shfaq edhe emrin e klientit nëse ekziston */}
+
+          <div className="p-4 md:p-5 space-y-5">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="md:col-span-2">
+                <label className="label">{al ? 'Vetura' : 'Vehicle'}</label>
+                <select className="input" value={selectedCarId} onChange={e => setSelectedCarId(e.target.value)}>
+                  <option value="">{al ? 'Zgjidh veturën…' : 'Select vehicle…'}</option>
                   {cars.map(c => (
                     <option key={c.id} value={c.id}>
-                      {c.clients?.full_name || (language === 'al' ? 'Pa Emër' : 'Unknown')} - {c.make} {c.model} • [{c.plate}]
+                      {c.plate} — {vehicleName(c.make, c.model)} · {c.clients?.full_name || (al ? 'Pa emër' : 'No owner')}
                     </option>
                   ))}
-                  
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-2">{language === 'al' ? 'Statusi i Punës' : 'Job Status'}</label>
-                <select className="w-full p-3 border border-gray-300 rounded-lg bg-white outline-none focus:ring-2 focus:ring-blue-500 font-semibold" value={jobStatus} onChange={e => setJobStatus(e.target.value)}>
-                  <option value="Pending" className="text-orange-600">{language === 'al' ? 'Në Pritje' : 'Pending'}</option>
-                  <option value="In Progress" className="text-blue-600">{language === 'al' ? 'Në Proces' : 'In Progress'}</option>
-                  <option value="Completed" className="text-green-600">{language === 'al' ? 'Përfunduar' : 'Completed'}</option>
+                <label className="label">{al ? 'Statusi' : 'Status'}</label>
+                <select className="input" value={jobStatus} onChange={e => setJobStatus(e.target.value)}>
+                  <option value="Pending">{al ? 'Në pritje' : 'Pending'}</option>
+                  <option value="In Progress">{al ? 'Në proces' : 'In progress'}</option>
+                  <option value="Completed">{al ? 'Përfunduar' : 'Completed'}</option>
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-2 flex items-center gap-1"><Calendar size={14}/> {language === 'al' ? 'Data e Shërbimit' : 'Date of Service'}</label>
-                <input type="date" className="w-full p-3 border border-gray-300 rounded-lg bg-white outline-none focus:ring-2 focus:ring-blue-500 font-medium text-gray-700" 
-                  value={serviceDate} onChange={e => setServiceDate(e.target.value)} />
+                <label className="label">{al ? 'Data e shërbimit' : 'Service date'}</label>
+                <input type="date" className="input" value={serviceDate} onChange={e => setServiceDate(e.target.value)} />
               </div>
             </div>
 
-            <div className="border rounded-lg overflow-hidden mb-6">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left min-w-[600px]">
-                  <thead className="bg-gray-100 border-b">
+            <div className="border border-gray-200 rounded-md">
+              <div className="table-scroll">
+                <table className="table min-w-[640px]">
+                  <thead>
                     <tr>
-                      <th className="p-3 text-sm font-bold text-gray-600 w-24 text-center">{language === 'al' ? 'Lloji' : 'Type'}</th>
-                      <th className="p-3 text-sm font-bold text-gray-600">{t.description || (language === 'al' ? 'Përshkrimi' : 'Description')}</th>
-                      <th className="p-3 text-sm font-bold text-gray-600 text-center w-24">{language === 'al' ? 'Sasia' : 'Qty'}</th>
-                      <th className="p-3 text-sm font-bold text-gray-600 text-right w-24">{language === 'al' ? 'Çmimi' : 'Price'}</th>
-                      <th className="p-3 text-sm font-bold text-gray-600 w-32 text-right">{t.total || (language === 'al' ? 'Totali' : 'Total')}</th>
-                      <th className="p-3 w-16"></th>
+                      <th className="w-24">{al ? 'Lloji' : 'Type'}</th>
+                      <th>{t.description}</th>
+                      <th className="text-right w-24">{al ? 'Sasia' : 'Qty'}</th>
+                      <th className="text-right w-28">{al ? 'Çmimi' : 'Unit price'}</th>
+                      <th className="text-right w-28">{t.total}</th>
+                      <th className="w-12"></th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {lineItems.length === 0 && ( <tr><td colSpan="6" className="p-8 text-center text-gray-400 italic">{language === 'al' ? 'Nuk ka asnjë artikull të shtuar.' : 'No items added yet.'}</td></tr> )}
-                    {lineItems.map((item, i) => {
-                      const itemTotal = Number(item.price) * Number(item.quantity);
-                      
-                      // Përkthimi i Llojit të Artikullit
-                      const itemTypeLabel = item.category === 'labor' 
-                         ? (language === 'al' ? 'Punë' : 'Labor') 
-                         : (language === 'al' ? 'Pjesë' : 'Part');
-                         
-                      return (
-                        <tr key={i} className="hover:bg-gray-50">
-                          <td className="p-3 text-center">
-                            {item.category === 'labor' 
-                              ? <span className="inline-flex items-center gap-1 bg-gray-100 text-gray-600 px-2 py-1 rounded text-xs font-bold"><Wrench size={12}/> {itemTypeLabel}</span> 
-                              : <span className="inline-flex items-center gap-1 bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-bold"><Package size={12}/> {itemTypeLabel}</span>}
-                          </td>
-                          <td className="p-3 font-medium text-gray-800">
-                             {item.description} 
-                             {item.inventory_id && <span className="ml-2 text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded uppercase font-bold tracking-wider">{language === 'al' ? 'Nga Stoku' : 'From Stock'}</span>}
-                          </td>
-                          <td className="p-3 text-center font-mono text-sm">{item.quantity} <span className="text-gray-400">{language === 'al' && item.unit === 'pcs' ? 'copë' : item.unit}</span></td>
-                          <td className="p-3 text-right font-mono text-gray-500">{currency}{item.price}</td>
-                          <td className="p-3 text-right font-mono font-bold text-gray-900">{currency}{itemTotal.toFixed(2)}</td>
-                          <td className="p-3 text-center"><button type="button" onClick={() => setLineItems(lineItems.filter((_, idx) => idx !== i))} className="text-gray-300 hover:text-red-500"><Trash2 size={18} /></button></td>
-                        </tr>
-                      )
-                    })}
+                  <tbody>
+                    {lineItems.length === 0 && (
+                      <tr><td colSpan="6" className="text-center text-gray-400 !py-6">{al ? 'Nuk ka artikuj ende.' : 'No line items yet.'}</td></tr>
+                    )}
+                    {lineItems.map((item, i) => (
+                      <tr key={i}>
+                        <td>
+                          {item.category === 'labor'
+                            ? <span className="badge badge-gray"><Wrench size={11} /> {al ? 'Punë' : 'Labor'}</span>
+                            : <span className="badge badge-blue"><Package size={11} /> {al ? 'Pjesë' : 'Part'}</span>}
+                        </td>
+                        <td className="text-gray-900">
+                          {item.description}
+                          {item.inventory_id && <span className="badge badge-green ml-2">{al ? 'Nga stoku' : 'From stock'}</span>}
+                        </td>
+                        <td className="text-right font-mono">{item.quantity} <span className="text-gray-400 text-xs">{unitLabel(item.unit)}</span></td>
+                        <td className="text-right font-mono text-gray-600">{money(item.price)}</td>
+                        <td className="text-right font-mono font-medium">{money(Number(item.price) * Number(item.quantity))}</td>
+                        <td className="text-right">
+                          <button type="button" onClick={() => setLineItems(lineItems.filter((_, idx) => idx !== i))} className="btn-icon-danger" aria-label="Remove"><Trash2 size={15} /></button>
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
 
-              <div className="bg-gray-50 border-t p-3 flex flex-col md:flex-row gap-2 items-stretch md:items-center">
-                <select className="p-2 border rounded bg-white text-sm font-bold outline-none" value={newItem.category} onChange={e => setNewItem({...newItem, category: e.target.value, description: '', price: '', quantity: 1, inventory_id: null, cost_price: 0})}>
-                  <option value="labor">🛠️ {language === 'al' ? 'Punë dore' : 'Labor'}</option>
-                  <option value="part">📦 {language === 'al' ? 'Pjesë këmbimi' : 'Part'}</option>
+              <div className="bg-gray-50 border-t border-gray-200 p-3 flex flex-col md:flex-row md:flex-wrap gap-2 md:items-center">
+                <select className="input md:w-32" value={newItem.category}
+                  onChange={e => setNewItem({ ...EMPTY_ITEM, category: e.target.value })}>
+                  <option value="labor">{al ? 'Punë dore' : 'Labor'}</option>
+                  <option value="part">{al ? 'Pjesë' : 'Part'}</option>
                 </select>
-                
+
                 {newItem.category === 'part' && (
-                  <select onChange={handleInventorySelect} className="p-2 border rounded bg-blue-50 text-blue-700 text-sm font-bold outline-none">
-                    <option value="">+ {language === 'al' ? 'Merr nga Stoku...' : 'Pull from Stock...'}</option>
-                    {inventory.map(item => <option key={item.id} value={item.id} disabled={item.quantity <= 0}>{item.part_name} ({item.quantity} {language === 'al' ? 'mbetur' : 'left'})</option>)}
-                  </select>
+                  <StockPicker inventory={inventory} onPick={handleStockPick} al={al} currency={currency} />
                 )}
-                
-                <input placeholder={newItem.category === 'labor' ? (language === 'al' ? "Përshkrimi i punës" : "Task description") : (language === 'al' ? "Emri i Pjesës" : "Part Name")} className="flex-1 p-2 border rounded text-sm outline-none focus:ring-2 focus:ring-blue-500" value={newItem.description} onChange={e => setNewItem({...newItem, description: e.target.value})} />
-                
-                <div className="flex gap-1 w-full md:w-32 shrink-0">
-                  <input type="number" step="any" min="0.1" placeholder="Qty" className="w-16 p-2 border rounded text-sm outline-none focus:ring-2 focus:ring-blue-500 font-mono" value={newItem.quantity} onChange={e => setNewItem({...newItem, quantity: e.target.value})} />
-                  <select className="flex-1 p-2 border rounded text-sm outline-none bg-white font-medium" value={newItem.unit} onChange={e => setNewItem({...newItem, unit: e.target.value})}>
-                    <option value="pcs">pcs</option>
+
+                <input
+                  placeholder={newItem.category === 'labor' ? (al ? 'Përshkrimi i punës' : 'Work description') : (al ? 'Emri i pjesës' : 'Part name')}
+                  className="input md:flex-1 md:min-w-[180px]"
+                  value={newItem.description}
+                  onChange={e => setNewItem({ ...newItem, description: e.target.value, inventory_id: null })}
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddLineItem(); } }}
+                />
+                <div className="flex gap-2">
+                  <input type="number" step="any" min="0.1" placeholder={al ? 'Sasia' : 'Qty'} className="input w-20 font-mono"
+                    value={newItem.quantity} onChange={e => setNewItem({ ...newItem, quantity: e.target.value })} />
+                  <select className="input w-20" value={newItem.unit} onChange={e => setNewItem({ ...newItem, unit: e.target.value })}>
+                    <option value="pcs">{al ? 'copë' : 'pcs'}</option>
                     <option value="L">L</option>
-                    <option value="hr">hr</option>
+                    <option value="hr">{al ? 'orë' : 'hr'}</option>
                   </select>
+                  <input type="number" step="0.01" min="0" placeholder={`${al ? 'Çmimi' : 'Price'} (${currency})`} className="input w-28 font-mono"
+                    value={newItem.price} onChange={e => setNewItem({ ...newItem, price: e.target.value })}
+                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddLineItem(); } }} />
                 </div>
-
-                <input type="number" step="0.01" placeholder={language === 'al' ? `Çmimi (${currency})` : `Unit Price (${currency})`} className="w-full md:w-28 p-2 border rounded text-sm outline-none focus:ring-2 focus:ring-blue-500 font-mono" value={newItem.price} onChange={e => setNewItem({...newItem, price: e.target.value})} />
-                
-                <button type="button" onClick={handleAddLineItem} className="bg-blue-600 hover:bg-blue-700 text-white p-2 rounded md:px-4 font-bold flex items-center justify-center gap-1 transition-colors"><Plus size={16}/> {language === 'al' ? 'Shto' : 'Add'}</button>
+                <button type="button" onClick={handleAddLineItem} className="btn btn-secondary">
+                  <Plus size={15} /> {al ? 'Shto' : 'Add'}
+                </button>
               </div>
             </div>
 
-            <div className="flex flex-col md:flex-row gap-6 mt-8 pt-6 border-t border-gray-100">
+            <div className="flex flex-col md:flex-row gap-5">
               <div className="flex-1">
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-2">{language === 'al' ? 'Shënime për Faturën' : 'Invoice Notes / Description'}</label>
-                <textarea className="w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-gray-50" placeholder={language === 'al' ? "Faleminderit që zgjodhët shërbimin tonë! Garanci 30 ditore..." : "Thank you for your business! 30-day warranty on parts..."} value={invoiceNotes} onChange={e => setInvoiceNotes(e.target.value)} rows="3"></textarea>
+                <label className="label">{al ? 'Shënime në faturë' : 'Invoice notes'}</label>
+                <textarea rows="4" className="input"
+                  placeholder={al ? 'p.sh. Garanci 30 ditore për pjesët.' : 'e.g. 30-day warranty on parts.'}
+                  value={invoiceNotes} onChange={e => setInvoiceNotes(e.target.value)} />
               </div>
-              <div className="w-full md:w-72 space-y-3">
-                <div className="flex justify-between text-sm font-bold text-gray-600 p-2">
-                  <span>{language === 'al' ? 'Nëntotali' : 'Subtotal'}</span>
-                  <span className="font-mono">{currency}{calculateSubtotal().toFixed(2)}</span>
+              <div className="w-full md:w-72 border border-gray-200 rounded-md divide-y divide-gray-200 self-start">
+                <div className="flex justify-between px-3 py-2.5 text-sm">
+                  <span className="text-gray-600">{al ? 'Nëntotali' : 'Subtotal'}</span>
+                  <span className="font-mono">{money(subtotal)}</span>
                 </div>
-                <div className="flex justify-between items-center text-sm font-bold text-red-500 bg-red-50 p-2 rounded border border-red-100">
-                  <span>{language === 'al' ? 'Zbritja' : 'Discount'}</span>
-                  <div className="relative w-24">
-                    <span className="absolute left-2 top-1.5">{currency}</span>
-                    <input type="number" step="0.01" className="w-full pl-6 p-1 border border-red-200 rounded outline-none focus:ring-1 focus:ring-red-500 text-right font-mono bg-white" value={discount} onChange={e => setDiscount(e.target.value)} placeholder="0.00" />
-                  </div>
+                <div className="flex justify-between items-center px-3 py-2 text-sm">
+                  <span className="text-gray-600">{al ? 'Zbritja' : 'Discount'}</span>
+                  <input type="number" step="0.01" min="0" className="input h-8 w-28 text-right font-mono"
+                    value={discount} onChange={e => setDiscount(e.target.value)} placeholder="0,00" />
                 </div>
-                <div className="flex justify-between items-center bg-gray-900 text-white p-4 rounded-xl mt-2 shadow-inner">
-                  <span className="text-sm font-bold uppercase tracking-wider">{language === 'al' ? "Totali për t'u paguar" : 'Total Due'}</span>
-                  <span className="text-2xl font-black font-mono">{currency}{calculateTotal().toFixed(2)}</span>
+                <div className="flex justify-between items-center px-3 py-3 bg-gray-50">
+                  <span className="text-sm font-semibold text-gray-900">{al ? 'Totali' : 'Total due'}</span>
+                  <span className="text-lg font-semibold font-mono text-gray-900">{money(total)}</span>
                 </div>
               </div>
-            </div>
-
-            <div className="flex flex-col sm:flex-row gap-3 w-full justify-end mt-6">
-              <button type="button" onClick={handleCancel} className="w-full sm:w-auto px-6 py-3 text-gray-600 font-bold hover:bg-gray-100 rounded-xl transition-colors">{language === 'al' ? 'Anulo' : 'Cancel'}</button>
-              <button type="button" onClick={handleSubmit} className="w-full sm:w-auto px-8 py-3 bg-green-500 hover:bg-green-600 text-white font-black rounded-xl shadow-lg flex justify-center items-center gap-2 transition-transform hover:scale-105">
-                <CheckCircle size={20}/> {editId ? (language === 'al' ? 'Përditëso' : 'Update Ticket') : (language === 'al' ? 'Ruaj' : 'Save Ticket')}
-              </button>
             </div>
           </div>
-        </div>
+
+          <div className="px-4 md:px-5 py-3 border-t border-gray-200 bg-gray-50 flex flex-col-reverse sm:flex-row justify-end gap-2">
+            <button type="button" onClick={handleCancel} className="btn btn-secondary">{al ? 'Anulo' : 'Cancel'}</button>
+            <button type="submit" disabled={saving} className="btn btn-primary">
+              <Check size={16} /> {saving ? (al ? 'Duke ruajtur…' : 'Saving…') : editId ? (al ? 'Përditëso' : 'Update job') : (al ? 'Ruaj punën' : 'Save job')}
+            </button>
+          </div>
+        </form>
       )}
 
-      {/* JOB CARDS - NOW USING FILTERED LIST */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {loading ? <p>{language === 'al' ? 'Duke ngarkuar...' : 'Loading...'}</p> : filteredServices.map(service => (
-          <div key={service.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow">
-            <div className="p-4 md:p-5 border-b flex justify-between items-start bg-gray-50/50">
-              <div>
-                <h3 className="font-black text-lg text-gray-800">{service.cars?.make} {service.cars?.model}</h3>
-                <p className="text-sm text-gray-500 font-medium flex items-center gap-1 mt-1"><Car size={14}/> {service.cars?.plate}</p>
-              </div>
-              <div className="text-right flex flex-col items-end gap-2">
-                <span className={`px-2 md:px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${service.status === 'Completed' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
-                  {statusTranslations[service.status] || service.status}
-                </span>
-                <p className="font-mono font-black text-lg md:text-xl text-gray-900">{currency}{service.cost}</p>
-              </div>
-            </div>
-            <div className="p-4 bg-white flex flex-col gap-3">
-               <span className="text-xs text-gray-400 font-medium font-bold">{t.date || (language === 'al' ? 'Data:' : 'Service Date:')} {new Date(service.service_date || service.created_at || new Date()).toLocaleDateString()}</span>
-               <div className="flex gap-2 w-full mt-1">
-                 <button onClick={() => navigate(`/services?edit=${service.id}`)} className="flex-1 text-sm text-blue-600 bg-blue-50 py-2 rounded hover:bg-blue-100 font-bold flex justify-center items-center gap-1">{t.edit || (language === 'al' ? 'Ndrysho' : 'Edit')}</button>
-                 <button onClick={() => navigate(`/invoices/${service.id}`)} className="flex-1 text-sm text-gray-700 border border-gray-200 py-2 rounded hover:bg-gray-50 font-bold flex justify-center items-center gap-1"><FileText size={14}/> PDF</button>
-                 <button onClick={() => handleDeleteService(service.id)} className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded hover:bg-red-100 font-bold flex justify-center items-center"><Trash2 size={16}/></button>
-               </div>
-            </div>
+      {/* Toolbar: search + filters */}
+      <div className="flex flex-col md:flex-row gap-2 mb-3">
+        <SearchInput
+          className="md:flex-1 md:max-w-md"
+          value={search}
+          onChange={setSearch}
+          placeholder={al ? 'Kërko: targa, vetura, klienti, shërbimi, nr. faturës…' : 'Search: plate, vehicle, client, service, invoice no.…'}
+        />
+        <div className="flex gap-2">
+          <select className="input md:w-40" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+            <option value="all">{al ? 'Të gjitha statuset' : 'All statuses'}</option>
+            <option value="Pending">{al ? 'Në pritje' : 'Pending'}</option>
+            <option value="In Progress">{al ? 'Në proces' : 'In progress'}</option>
+            <option value="Completed">{al ? 'Përfunduar' : 'Completed'}</option>
+          </select>
+          <select className="input md:w-36" value={timeFilter} onChange={e => setTimeFilter(e.target.value)}>
+            <option value="all">{al ? 'Çdo kohë' : 'All time'}</option>
+            <option value="today">{al ? 'Sot' : 'Today'}</option>
+            <option value="month">{al ? 'Ky muaj' : 'This month'}</option>
+            <option value="year">{al ? 'Ky vit' : 'This year'}</option>
+          </select>
+        </div>
+      </div>
+
+      <div className="card overflow-hidden">
+        {loading ? <TableSkeleton rows={6} cols={5} /> : filteredServices.length === 0 ? (
+          <EmptyState
+            icon={Wrench}
+            title={search ? (al ? 'Asnjë rezultat' : 'No results') : (al ? 'Nuk ka punë' : 'No jobs found')}
+            description={search ? (al ? `Asgjë nuk përputhet me “${search}”.` : `Nothing matches “${search}”.`) : (al ? 'Provo një filtër tjetër ose krijo një punë të re.' : 'Try another filter or create a new job.')}
+          />
+        ) : (
+          <div className="table-scroll">
+            <table className="table min-w-[760px]">
+              <thead>
+                <tr>
+                  <th>{al ? 'Data' : 'Date'}</th>
+                  <th>{al ? 'Vetura' : 'Vehicle'}</th>
+                  <th>{al ? 'Klienti' : 'Client'}</th>
+                  <th>{al ? 'Shërbimi' : 'Work'}</th>
+                  <th>{al ? 'Statusi' : 'Status'}</th>
+                  <th className="text-right">{t.total}</th>
+                  <th className="w-28"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredServices.map(s => (
+                  <tr key={s.id} className="cursor-pointer" onClick={() => navigate(`/services?edit=${s.id}`)}>
+                    <td className="whitespace-nowrap text-gray-600">{formatDate(s.service_date || s.created_at)}</td>
+                    <td>
+                      <div className="flex items-center gap-2">
+                        {s.cars?.plate && <span className="plate">{s.cars.plate}</span>}
+                        <span className="text-gray-900 whitespace-nowrap">{vehicleName(s.cars?.make, s.cars?.model)}</span>
+                      </div>
+                    </td>
+                    <td className="text-gray-700">{s.cars?.clients?.full_name || '—'}</td>
+                    <td className="text-gray-600 max-w-[260px] truncate" title={(s.service_items || []).map(i => i.description).join(', ')}>
+                      {s.description || '—'}
+                    </td>
+                    <td><StatusBadge status={s.status} language={language} /></td>
+                    <td className="text-right font-mono font-medium text-gray-900 whitespace-nowrap">{money(s.cost)}</td>
+                    <td onClick={e => e.stopPropagation()}>
+                      <div className="flex justify-end gap-0.5">
+                        <button onClick={() => navigate(`/services?edit=${s.id}`)} className="btn-icon" title={t.edit}><Pencil size={15} /></button>
+                        <button onClick={() => navigate(`/invoices/${s.id}`)} className="btn-icon" title={al ? 'Fatura' : 'Invoice'}><FileText size={15} /></button>
+                        <button onClick={() => handleDeleteService(s.id)} className="btn-icon-danger" title={al ? 'Fshi' : 'Delete'}><Trash2 size={15} /></button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        ))}
-        {!loading && filteredServices.length === 0 && (
-          <div className="col-span-full p-8 text-center text-gray-500 italic bg-white rounded-xl border border-dashed">{language === 'al' ? 'Nuk u gjet asnjë punë për këtë periudhë kohore.' : 'No services found for this time period.'}</div>
         )}
       </div>
+      {!loading && services.length > 0 && (
+        <p className="mt-2 text-xs text-gray-500">
+          {al ? `${filteredServices.length} nga ${services.length} punë` : `Showing ${filteredServices.length} of ${services.length} jobs`}
+          {filteredServices.length > 0 && ` · ${al ? 'Totali' : 'Total'} ${money(filteredServices.reduce((a, s) => a + (Number(s.cost) || 0), 0))}`}
+        </p>
+      )}
     </div>
   );
 }

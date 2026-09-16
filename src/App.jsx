@@ -20,6 +20,8 @@ import SuperAdmin from './pages/SuperAdmin';
 import { ShieldAlert, X } from 'lucide-react';
 import Appointments from './pages/Appointments';
 import { SyncProvider } from './contexts/SyncContext';
+import { ToastProvider } from './components/ui';
+import { formatDate } from './lib/format';
 import Reports from './pages/Reports';
 
 import LandingPage from './pages/LandingPage';
@@ -132,7 +134,12 @@ function MainApp() {
     setLoading(false);
   }
   
-  if (loading) return <div className="h-screen flex items-center justify-center text-gray-500 font-bold">Duke u ngarkuar...</div>;
+  if (loading) return (
+    <div className="h-screen flex flex-col items-center justify-center gap-3 bg-gray-100">
+      <div className="h-6 w-6 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin" />
+      <p className="text-sm text-gray-500">{isAl ? 'Duke u ngarkuar…' : 'Loading…'}</p>
+    </div>
+  );
 
   if (!session) {
     if (showAuth) {
@@ -140,7 +147,7 @@ function MainApp() {
         <div className="relative min-h-screen bg-gray-50 flex flex-col justify-center">
           <button 
             onClick={() => setShowAuth(false)} 
-            className="absolute top-6 left-6 z-50 bg-white px-4 py-2 rounded-lg font-bold shadow-md text-gray-600 hover:text-gray-900 transition-colors border border-gray-100"
+            className="btn btn-secondary absolute top-6 left-6 z-50"
           >
             &larr; {isAl ? 'Kthehu mbrapa' : 'Go back'}
           </button>
@@ -153,8 +160,8 @@ function MainApp() {
 
   if (isSuspended) return (
     <div className="h-screen flex flex-col items-center justify-center bg-gray-100 text-center p-6">
-       <ShieldAlert size={64} className="text-red-600 mb-6 animate-pulse" />
-       <h1 className="text-3xl font-black text-gray-900 mb-2 uppercase tracking-tight">
+       <div className="h-14 w-14 mb-5 flex items-center justify-center rounded-lg border border-red-200 bg-red-50 text-red-600"><ShieldAlert size={28} /></div>
+       <h1 className="text-2xl font-semibold text-gray-900 mb-2">
          {isAl ? 'Llogaria është Pezulluar' : 'Account Suspended'}
        </h1>
        <p className="text-gray-600 mb-8 max-w-md">
@@ -162,7 +169,7 @@ function MainApp() {
            ? 'Koha juaj e provës ka përfunduar ose llogaria juaj është pezulluar përkohësisht. Ju lutemi kontaktoni mbështetjen për të rifituar aksesin.' 
            : 'Your trial period has ended or your account has been temporarily paused. Please contact support to restore access.'}
        </p>
-       <button onClick={() => supabase.auth.signOut()} className="bg-gray-900 text-white px-8 py-3 rounded-lg font-bold shadow-lg hover:bg-gray-800 transition-colors">
+       <button onClick={() => supabase.auth.signOut()} className="btn btn-primary btn-lg">
          {isAl ? 'Dil nga llogaria' : 'Log Out'}
        </button>
     </div>
@@ -174,18 +181,18 @@ function MainApp() {
     <div className="h-screen flex flex-col bg-gray-100 overflow-hidden">
       
       {showTrialBanner && trialEndDate && (
-        <div className="bg-yellow-500 text-yellow-950 px-4 py-2.5 flex justify-between items-center text-sm font-bold z-50 shrink-0 shadow-md">
+        <div className="bg-amber-50 border-b border-amber-200 text-amber-900 px-4 py-2 flex justify-between items-center text-[13px] z-50 shrink-0 print:hidden">
           <div className="w-6"></div>
           
           <div className="flex-1 text-center">
             {isAl 
-              ? `⚠️ Kujdes: Llogaria juaj e provës skadon më ${new Date(trialEndDate).toLocaleDateString('en-GB')}. Ju lutemi na kontaktoni për të aktivizuar abonimin.` 
-              : `⚠️ Warning: Your trial account expires on ${new Date(trialEndDate).toLocaleDateString('en-GB')}. Please contact us to activate your subscription.`}
+              ? `Llogaria juaj e provës skadon më ${formatDate(trialEndDate)}. Na kontaktoni për të aktivizuar abonimin.` 
+              : `Your trial expires on ${formatDate(trialEndDate)}. Contact us to activate your subscription.`}
           </div>
           
           <button 
             onClick={() => setShowTrialBanner(false)} 
-            className="hover:bg-yellow-600 hover:text-white p-1 rounded-full transition-colors"
+            className="p-1 rounded hover:bg-amber-100 transition-colors"
             title={isAl ? "Mbyll" : "Close"}
           >
             <X size={18} strokeWidth={2.5} />
@@ -195,7 +202,7 @@ function MainApp() {
 
       <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
         <Sidebar />
-        <main className="flex-1 overflow-y-auto w-full">        
+        <main className="flex-1 min-w-0 overflow-y-auto w-full">
           <Routes>
             <Route path="/" element={isAdmin ? <Navigate to="/admin" replace /> : <Dashboard />} />
             <Route path="/clients" element={<Clients />} />
@@ -225,9 +232,11 @@ export default function App() {
   return (
     <BrowserRouter>
       <LanguageProvider>
-        <SyncProvider>
-          <MainApp />
-        </SyncProvider>
+        <ToastProvider>
+          <SyncProvider>
+            <MainApp />
+          </SyncProvider>
+        </ToastProvider>
       </LanguageProvider>
     </BrowserRouter>
   );

@@ -1,302 +1,248 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { Plus, Trash2, Receipt, Calendar, DollarSign, PieChart, X } from 'lucide-react';
+import { Plus, Trash2, Receipt, X, Check } from 'lucide-react';
 import { useSync } from '../contexts/SyncContext';
-import { useLanguage } from '../LanguageContext'; // SHTUAR: Importo Context-in e gjuhës
-import { translations } from '../translations'; // SHTUAR: Importo fjalorin
+import { useLanguage } from '../LanguageContext';
+import { translations } from '../translations';
+import { PageHeader, SearchInput, EmptyState, TableSkeleton, useToast } from '../components/ui';
+import { formatMoney, formatDate, todayISO, rowDate, matches } from '../lib/format';
 
 const CATEGORIES = [
-  'Rent', 'Electricity', 'Water', 'Wifi / Phone', 'Tools & Equipment', 'Food / Meals', 'Marketing', 'Maintenance', 'Other'
+  'Rent', 'Electricity', 'Water', 'Wifi / Phone', 'Tools & Equipment', 'Food / Meals', 'Marketing', 'Maintenance', 'Other',
 ];
+
+const emptyForm = () => ({ category: 'Tools & Equipment', amount: '', description: '', expense_date: todayISO() });
 
 export default function Expenses() {
   const { isOnline, addToQueue } = useSync();
-  
-  // SHTUAR: Lexo gjuhën dhe fjalorin
   const { language } = useLanguage();
   const t = translations[language] || translations.en;
+  const al = language === 'al';
+  const toast = useToast();
 
   const [expenses, setExpenses] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [showForm, setShowForm] = useState(false);
-  const [currency, setCurrency] = useState('$');
+  const [currency, setCurrency] = useState('€');
+  const [formData, setFormData] = useState(emptyForm);
+  const [search, setSearch] = useState('');
+  const [category, setCategory] = useState('all');
 
-  const [formData, setFormData] = useState({
-    category: 'Tools & Equipment',
-    amount: '',
-    description: '',
-    expense_date: new Date().toISOString().split('T')[0] // Defaults to today (YYYY-MM-DD)
-  });
+  const money = v => formatMoney(v, currency);
 
-  // Fjalor i vogël për të përkthyer kategoritë vizualisht (ruhen në anglisht në DB për uniformitet)
-  const categoryTranslations = {
-    'Rent': language === 'al' ? 'Qiraja' : 'Rent',
-    'Electricity': language === 'al' ? 'Energjia Elektrike' : 'Electricity',
-    'Water': language === 'al' ? 'Uji' : 'Water',
-    'Wifi / Phone': language === 'al' ? 'Wifi / Telefoni' : 'Wifi / Phone',
-    'Tools & Equipment': language === 'al' ? 'Mjete & Pajisje' : 'Tools & Equipment',
-    'Food / Meals': language === 'al' ? 'Ushqim / Vakte' : 'Food / Meals',
-    'Marketing': language === 'al' ? 'Marketing' : 'Marketing',
-    'Maintenance': language === 'al' ? 'Mirëmbajtje' : 'Maintenance',
-    'Other': language === 'al' ? 'Tjetër' : 'Other'
-  };
+  const catLabel = c => (al ? {
+    'Rent': 'Qiraja', 'Electricity': 'Energjia elektrike', 'Water': 'Uji', 'Wifi / Phone': 'Internet / telefon',
+    'Tools & Equipment': 'Vegla & pajisje', 'Food / Meals': 'Ushqim', 'Marketing': 'Marketing',
+    'Maintenance': 'Mirëmbajtje', 'Other': 'Tjetër',
+  }[c] : c) || c;
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { fetchData(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+
+  function loadCache() {
+    try {
+      const c = JSON.parse(localStorage.getItem('sonic_expenses_cache') || 'null');
+      if (c) setExpenses(c);
+    } catch { /* ignore */ }
+  }
 
   async function fetchData() {
     setLoading(true);
-
-    if (!isOnline) {
-      const cachedExpenses = localStorage.getItem('sonic_expenses_cache');
-      if (cachedExpenses) {
-        setExpenses(JSON.parse(cachedExpenses));
-      }
-      setLoading(false);
-      return; 
-    }
-
+    if (!isOnline) { loadCache(); setLoading(false); return; }
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("No user");
-
+      if (!user) throw new Error('No user');
       const { data: profile } = await supabase.from('profiles').select('workshop_id').eq('id', user.id).single();
-      
       if (profile) {
-        const { data: expenseData } = await supabase
-          .from('expenses')
-          .select('*')
-          .eq('workshop_id', profile.workshop_id)
-          .order('expense_date', { ascending: false });
-        
-        setExpenses(expenseData || []);
-        localStorage.setItem('sonic_expenses_cache', JSON.stringify(expenseData || []));
+        const [shop, res] = await Promise.all([
+          supabase.from('workshops').select('currency').eq('id', profile.workshop_id).single(),
+          supabase.from('expenses').select('*').eq('workshop_id', profile.workshop_id).order('expense_date', { ascending: false }),
+        ]);
+        setCurrency(shop.data?.currency || '€');
+        setExpenses(res.data || []);
+        localStorage.setItem('sonic_expenses_cache', JSON.stringify(res.data || []));
       }
     } catch (error) {
-      console.error("Fetch error (fallback to cache):", error);
-      const cachedExpenses = localStorage.getItem('sonic_expenses_cache');
-      if (cachedExpenses) setExpenses(JSON.parse(cachedExpenses));
+      console.error('Fetch error (fallback to cache):', error);
+      loadCache();
     }
-
     setLoading(false);
+  }
+
+  function closeForm() {
+    setShowForm(false);
+    setFormData(emptyForm());
   }
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!formData.amount || formData.amount <= 0) {
-      return alert(language === 'al' ? 'Ju lutem shënoni një shumë të vlefshme.' : 'Please enter a valid amount.');
+    if (!formData.amount || Number(formData.amount) <= 0) {
+      return toast.error(al ? 'Shënoni një shumë të vlefshme.' : 'Please enter a valid amount.');
     }
-
+    setSaving(true);
     try {
       let workshopId = localStorage.getItem('sonic_workshop_id');
-
       if (!workshopId && isOnline) {
         const { data: { user } } = await supabase.auth.getUser();
         const { data: profile } = await supabase.from('profiles').select('workshop_id').eq('id', user.id).single();
-        
-        if (profile?.workshop_id) {
-          workshopId = profile.workshop_id;
-          localStorage.setItem('sonic_workshop_id', workshopId); 
-        }
+        if (profile?.workshop_id) { workshopId = profile.workshop_id; localStorage.setItem('sonic_workshop_id', workshopId); }
       }
+      if (!workshopId) throw new Error(al ? 'Nuk u gjet ID e ofiçinës. Lidhuni me internet.' : 'Workshop ID not found. Please connect to the internet.');
 
-      if (!workshopId) throw new Error(language === 'al' ? "Nuk u gjet ID e Ofiçinës. Lidhu pak me Wi-Fi." : "Could not find Workshop ID. Please connect to Wi-Fi and refresh the page.");
-
-      const payload = { ...formData, workshop_id: workshopId };
+      const payload = { ...formData, amount: Number(formData.amount), workshop_id: workshopId };
 
       if (!isOnline) {
         addToQueue('expenses', 'INSERT', payload);
-        alert(language === 'al' ? 'Ju jeni offline! 🛜 Shpenzimi u ruajt lokalisht dhe do të ngarkohet kur të vijë interneti.' : 'You are offline! 🛜 Expense saved to local queue and will upload when internet returns.');
-        
-        const tempExpense = {
-          id: 'temp-' + Date.now(), 
-          ...payload,
-          created_at: new Date().toISOString()
-        };
-
-        setExpenses(prevExpenses => [tempExpense, ...prevExpenses]);
-
-        const existingCache = JSON.parse(localStorage.getItem('sonic_expenses_cache') || '[]');
-        localStorage.setItem('sonic_expenses_cache', JSON.stringify([tempExpense, ...existingCache]));
-
-        setShowForm(false);
-        setFormData({ category: 'Tools & Equipment', amount: '', description: '', expense_date: new Date().toISOString().split('T')[0] });
-        return; 
+        const temp = { id: 'temp-' + Date.now(), ...payload, created_at: new Date().toISOString() };
+        setExpenses(prev => [temp, ...prev]);
+        const cache = JSON.parse(localStorage.getItem('sonic_expenses_cache') || '[]');
+        localStorage.setItem('sonic_expenses_cache', JSON.stringify([temp, ...cache]));
+        toast.info(al ? 'Offline: u ruajt lokalisht, do të sinkronizohet.' : 'Offline: saved locally, will sync.');
+        closeForm();
+        return;
       }
 
       const { error } = await supabase.from('expenses').insert([payload]);
       if (error) throw error;
-
-      setShowForm(false);
-      setFormData({ category: 'Tools & Equipment', amount: '', description: '', expense_date: new Date().toISOString().split('T')[0] });
-      fetchData(); 
+      toast.success(al ? 'Shpenzimi u ruajt.' : 'Expense saved.');
+      closeForm();
+      fetchData();
     } catch (error) {
-      alert((language === 'al' ? 'Gabim gjatë ruajtjes: ' : 'Error saving expense: ') + error.message);
+      toast.error((al ? 'Gabim gjatë ruajtjes: ' : 'Error saving expense: ') + error.message);
+    } finally {
+      setSaving(false);
     }
   }
 
-  async function handleDelete(id) {
-    const confirmMsg = language === 'al' 
-      ? 'Jeni i sigurt që dëshironi ta fshini këtë shpenzim?' 
-      : 'Are you sure you want to delete this expense?';
-
-    if (window.confirm(confirmMsg)) {
-      if (!isOnline) {
-        setExpenses(prev => prev.filter(e => e.id !== id));
-        
-        const existingCache = JSON.parse(localStorage.getItem('sonic_expenses_cache') || '[]');
-        const updatedCache = existingCache.filter(e => e.id !== id);
-        localStorage.setItem('sonic_expenses_cache', JSON.stringify(updatedCache));
-
-        if (!id.toString().startsWith('temp-')) {
-          addToQueue('expenses', 'DELETE', { id });
-          alert(language === 'al' ? 'Offline: Shpenzimi u fshi lokalisht. Do të sinkronizohet kur të kthehet interneti.' : 'Offline: Expense deleted locally. Will sync to cloud when internet returns.');
-        }
-        return; 
+  async function handleDelete(exp) {
+    if (!window.confirm(al ? 'Fshi këtë shpenzim?' : 'Delete this expense?')) return;
+    const id = exp.id;
+    if (!isOnline) {
+      setExpenses(prev => prev.filter(e => e.id !== id));
+      const cache = JSON.parse(localStorage.getItem('sonic_expenses_cache') || '[]');
+      localStorage.setItem('sonic_expenses_cache', JSON.stringify(cache.filter(e => e.id !== id)));
+      if (!String(id).startsWith('temp-')) {
+        addToQueue('expenses', 'DELETE', { id });
+        toast.info(al ? 'Offline: u fshi lokalisht, do të sinkronizohet.' : 'Offline: deleted locally, will sync.');
       }
-
-      try {
-        const { error } = await supabase.from('expenses').delete().eq('id', id);
-        if (error) throw error;
-        fetchData();
-      } catch (error) {
-        alert((language === 'al' ? 'Gabim gjatë fshirjes: ' : 'Error deleting: ') + error.message);
-      }
+      return;
     }
+    const { error } = await supabase.from('expenses').delete().eq('id', id);
+    if (error) return toast.error((al ? 'Gabim gjatë fshirjes: ' : 'Error deleting: ') + error.message);
+    toast.success(al ? 'Shpenzimi u fshi.' : 'Expense deleted.');
+    fetchData();
   }
 
-  const currentMonth = new Date().getMonth();
-  const currentYear = new Date().getFullYear();
-  const monthlyTotal = expenses
-    .filter(exp => {
-      const d = new Date(exp.expense_date);
-      return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
-    })
-    .reduce((sum, exp) => sum + Number(exp.amount), 0);
+  const now = new Date();
+  const monthly = expenses.filter(e => {
+    const d = rowDate(e, 'expense_date');
+    return d && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+  });
+  const monthlyTotal = monthly.reduce((s, e) => s + Number(e.amount || 0), 0);
+  const yearTotal = expenses.filter(e => rowDate(e, 'expense_date')?.getFullYear() === now.getFullYear())
+    .reduce((s, e) => s + Number(e.amount || 0), 0);
+  const topCategory = Object.entries(monthly.reduce((acc, e) => ({ ...acc, [e.category]: (acc[e.category] || 0) + Number(e.amount || 0) }), {}))
+    .sort((a, b) => b[1] - a[1])[0];
+
+  const filtered = useMemo(() => expenses.filter(e =>
+    (category === 'all' || e.category === category) && matches(search, e.description, e.category, catLabel(e.category))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  ), [expenses, search, category, language]);
 
   return (
-    <div className="p-4 md:p-8">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 md:mb-8 gap-4">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-800">{t.page_title_expenses || (language === 'al' ? 'Shpenzimet e Biznesit' : 'Business Expenses')}</h1>
-          <p className="text-sm md:text-base text-gray-500 mt-1">{t.page_desc_expenses || (language === 'al' ? 'Gjurmo shpenzimet e përgjithshme, mjetet dhe kostot ditore.' : 'Track overhead, tools, and daily shop costs.')}</p>
-        </div>
+    <div className="page">
+      <PageHeader title={t.page_title_expenses} subtitle={t.page_desc_expenses}>
         {!showForm && (
-          <button onClick={() => setShowForm(true)} className="w-full md:w-auto justify-center bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg flex items-center gap-2 font-bold shadow-md">
-            <Plus size={20} /> {t.add_expense || (language === 'al' ? 'Shto Shpenzim' : 'Add Expense')}
-          </button>
+          <button onClick={() => setShowForm(true)} className="btn btn-primary"><Plus size={16} /> {t.add_expense}</button>
         )}
-      </div>
+      </PageHeader>
 
-      {/* OVERVIEW CARDS */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
-        <div className="bg-white p-5 rounded-xl shadow-sm border flex items-center gap-4">
-          <div className="bg-red-100 p-4 rounded-full text-red-600"><DollarSign size={24} /></div>
-          <div>
-            <p className="text-gray-500 font-bold text-xs uppercase tracking-wider">{language === 'al' ? 'Totali Këtë Muaj' : 'Total This Month'}</p>
-            <p className="text-2xl font-black text-gray-900 font-mono">{currency}{monthlyTotal.toFixed(2)}</p>
-          </div>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
+        <div className="stat"><p className="stat-label">{al ? 'Ky muaj' : 'This month'}</p><p className="stat-value text-xl">{money(monthlyTotal)}</p></div>
+        <div className="stat"><p className="stat-label">{al ? 'Ky vit' : 'This year'}</p><p className="stat-value text-xl">{money(yearTotal)}</p></div>
+        <div className="stat">
+          <p className="stat-label">{al ? 'Kategoria më e madhe (muaji)' : 'Largest category (month)'}</p>
+          <p className="stat-value text-xl font-sans">{topCategory ? catLabel(topCategory[0]) : '—'}</p>
+          {topCategory && <p className="text-xs text-gray-500 mt-0.5 font-mono">{money(topCategory[1])}</p>}
         </div>
       </div>
 
-      {/* ADD EXPENSE FORM */}
       {showForm && (
-        <div className="bg-white rounded-xl shadow-xl border border-gray-200 mb-8 overflow-hidden animate-fade-in max-w-4xl">
-          <div className="bg-gray-50 p-4 md:p-6 border-b flex justify-between items-center">
-            <h2 className="text-xl font-black text-gray-800 flex items-center gap-2">
-              <Receipt className="text-blue-600" size={24} /> {language === 'al' ? 'Regjistro Shpenzim të Ri' : 'Log New Expense'}
-            </h2>
-            <button onClick={() => setShowForm(false)} className="text-gray-400 hover:text-red-500 transition-colors bg-white p-2 rounded-full shadow-sm border"><X size={20}/></button>
+        <form onSubmit={handleSubmit} className="card mb-5 max-w-4xl animate-fade-in">
+          <div className="card-header">
+            <h2 className="card-title">{al ? 'Shpenzim i ri' : 'New expense'}</h2>
+            <button type="button" onClick={closeForm} className="btn-icon" aria-label="Close"><X size={16} /></button>
           </div>
-          
-          <form onSubmit={handleSubmit} className="p-4 md:p-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-6">
-              
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-2">{t.category || (language === 'al' ? 'Kategoria' : 'Category')}</label>
-                <div className="relative">
-                  <PieChart className="absolute left-3 top-3 text-gray-400" size={18} />
-                  <select required className="w-full pl-10 pr-4 py-2.5 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 font-bold text-gray-700 bg-white"
-                    value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})}>
-                    {CATEGORIES.map(cat => <option key={cat} value={cat}>{categoryTranslations[cat] || cat}</option>)}
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-2">{t.amount || (language === 'al' ? 'Shuma' : 'Amount')}</label>
-                <div className="relative">
-                  <span className="absolute left-3 top-2.5 font-bold text-gray-400">{currency}</span>
-                  <input required type="number" step="0.01" className="w-full pl-8 pr-4 py-2.5 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 font-mono font-bold" 
-                    placeholder="0.00" value={formData.amount} onChange={e => setFormData({...formData, amount: e.target.value})} />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-2">{t.date || (language === 'al' ? 'Data' : 'Date')}</label>
-                <div className="relative">
-                  <Calendar className="absolute left-3 top-2.5 text-gray-400" size={18} />
-                  <input required type="date" className="w-full pl-10 pr-4 py-2.5 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm font-medium" 
-                    value={formData.expense_date} onChange={e => setFormData({...formData, expense_date: e.target.value})} />
-                </div>
-              </div>
-
-              <div className="sm:col-span-2 lg:col-span-4">
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-2">{language === 'al' ? 'Përshkrimi / Shënime' : 'Description / Note'}</label>
-                <input className="w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm" 
-                  placeholder={language === 'al' ? "p.sh., Bleva set çelësash të rinj, Paguajta internetin..." : "e.g., Bought new socket set, Paid monthly internet..."} value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} />
-              </div>
-
+          <div className="p-4 md:p-5 grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label className="label">{t.category}</label>
+              <select required className="input" value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })}>
+                {CATEGORIES.map(c => <option key={c} value={c}>{catLabel(c)}</option>)}
+              </select>
             </div>
-
-            <div className="flex justify-end pt-4 border-t">
-              <button type="submit" className="w-full sm:w-auto px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl shadow-lg transition-transform hover:scale-105">
-                {language === 'al' ? 'Ruaj Shpenzimin' : 'Save Expense'}
-              </button>
+            <div>
+              <label className="label">{t.amount} ({currency})</label>
+              <input required type="number" step="0.01" min="0.01" className="input font-mono" placeholder="0,00"
+                value={formData.amount} onChange={e => setFormData({ ...formData, amount: e.target.value })} />
             </div>
-          </form>
-        </div>
+            <div>
+              <label className="label">{t.date}</label>
+              <input required type="date" className="input" value={formData.expense_date} onChange={e => setFormData({ ...formData, expense_date: e.target.value })} />
+            </div>
+            <div className="sm:col-span-3">
+              <label className="label">{al ? 'Përshkrimi' : 'Description'}</label>
+              <input className="input" placeholder={al ? 'p.sh. Pagesa mujore e internetit' : 'e.g. Monthly internet bill'}
+                value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} />
+            </div>
+          </div>
+          <div className="px-4 md:px-5 py-3 border-t border-gray-200 bg-gray-50 flex justify-end gap-2">
+            <button type="button" onClick={closeForm} className="btn btn-secondary">{al ? 'Anulo' : 'Cancel'}</button>
+            <button type="submit" disabled={saving} className="btn btn-primary"><Check size={16} /> {al ? 'Ruaj shpenzimin' : 'Save expense'}</button>
+          </div>
+        </form>
       )}
 
-      {/* EXPENSES LIST / TABLE */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left min-w-[600px]">
-            <thead className="bg-gray-50 border-b">
-              <tr>
-                <th className="p-4 font-bold text-gray-600 text-sm uppercase tracking-wider">{t.date || (language === 'al' ? 'Data' : 'Date')}</th>
-                <th className="p-4 font-bold text-gray-600 text-sm uppercase tracking-wider">{t.category || (language === 'al' ? 'Kategoria' : 'Category')}</th>
-                <th className="p-4 font-bold text-gray-600 text-sm uppercase tracking-wider">{t.description || (language === 'al' ? 'Përshkrimi' : 'Description')}</th>
-                <th className="p-4 font-bold text-gray-600 text-sm uppercase tracking-wider text-right">{t.amount || (language === 'al' ? 'Shuma' : 'Amount')}</th>
-                <th className="p-4 w-16"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {loading ? (
-                <tr><td colSpan="5" className="p-8 text-center text-gray-500">{language === 'al' ? 'Duke ngarkuar...' : 'Loading...'}</td></tr>
-              ) : expenses.length === 0 ? (
-                <tr><td colSpan="5" className="p-8 text-center text-gray-400 italic">{language === 'al' ? 'Nuk ka asnjë shpenzim të regjistruar ende.' : 'No expenses recorded yet.'}</td></tr>
-              ) : (
-                expenses.map(exp => (
-                  <tr key={exp.id} className="hover:bg-gray-50">
-                    <td className="p-4 text-sm font-medium text-gray-600">{new Date(exp.expense_date).toLocaleDateString()}</td>
-                    <td className="p-4">
-                      <span className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
-                        {categoryTranslations[exp.category] || exp.category}
-                      </span>
-                    </td>
-                    <td className="p-4 text-sm text-gray-800">{exp.description || '-'}</td>
-                    <td className="p-4 text-right font-mono font-black text-red-600">-{currency}{Number(exp.amount).toFixed(2)}</td>
-                    <td className="p-4 text-center">
-                      <button onClick={() => handleDelete(exp.id)} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors">
-                        <Trash2 size={18} />
-                      </button>
+      <div className="flex flex-col md:flex-row gap-2 mb-3">
+        <SearchInput className="md:flex-1 md:max-w-md" value={search} onChange={setSearch}
+          placeholder={al ? 'Kërko në përshkrime…' : 'Search descriptions…'} />
+        <select className="input md:w-52" value={category} onChange={e => setCategory(e.target.value)}>
+          <option value="all">{al ? 'Të gjitha kategoritë' : 'All categories'}</option>
+          {CATEGORIES.map(c => <option key={c} value={c}>{catLabel(c)}</option>)}
+        </select>
+      </div>
+
+      <div className="card overflow-hidden">
+        {loading ? <TableSkeleton rows={6} cols={4} /> : filtered.length === 0 ? (
+          <EmptyState icon={Receipt} title={al ? 'Nuk ka shpenzime' : 'No expenses'}
+            description={search || category !== 'all' ? (al ? 'Provo një filtër tjetër.' : 'Try a different filter.') : (al ? 'Regjistro shpenzimin e parë.' : 'Log your first expense.')} />
+        ) : (
+          <div className="table-scroll">
+            <table className="table min-w-[600px]">
+              <thead>
+                <tr>
+                  <th>{t.date}</th>
+                  <th>{t.category}</th>
+                  <th>{t.description}</th>
+                  <th className="text-right">{t.amount}</th>
+                  <th className="w-12"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map(exp => (
+                  <tr key={exp.id}>
+                    <td className="whitespace-nowrap text-gray-600">{formatDate(exp.expense_date)}</td>
+                    <td><span className="badge badge-gray">{catLabel(exp.category)}</span></td>
+                    <td className="text-gray-800">{exp.description || <span className="text-gray-300">—</span>}</td>
+                    <td className="text-right font-mono font-medium text-gray-900 whitespace-nowrap">{money(exp.amount)}</td>
+                    <td className="text-right">
+                      <button onClick={() => handleDelete(exp)} className="btn-icon-danger" title={al ? 'Fshi' : 'Delete'}><Trash2 size={15} /></button>
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );

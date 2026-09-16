@@ -3,7 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { Printer, ArrowLeft, CheckCircle, AlertTriangle, XCircle } from 'lucide-react';
 import { useLanguage } from '../LanguageContext'; // SHTUAR: Importo Context-in e gjuhës
-import { translations } from '../translations'; // SHTUAR: Importo fjalorin
+import { translations } from '../translations';
+import { useToast } from '../components/ui';
 
 // SAME DICTIONARY AS THE EDITOR
 const CAR_DIAGRAMS = {
@@ -22,6 +23,7 @@ export default function InspectionReport() {
   // SHTUAR: Lexo gjuhën dhe fjalorin
   const { language } = useLanguage();
   const t = translations[language] || translations.en;
+  const toast = useToast();
 
   useEffect(() => {
     async function fetchReport() {
@@ -32,7 +34,7 @@ export default function InspectionReport() {
         .single();
 
       if (error) {
-        alert(language === 'al' ? 'Gabim gjatë ngarkimit të raportit' : 'Error loading report');
+        toast.error(language === 'al' ? 'Gabim gjatë ngarkimit të raportit' : 'Error loading report');
         navigate('/inspections');
       } else {
         setData(insp);
@@ -40,7 +42,8 @@ export default function InspectionReport() {
       setLoading(false);
     }
     fetchReport();
-  }, [id, navigate, language]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, navigate]);
 
   if (loading) return <div className="p-8 text-center">{language === 'al' ? 'Duke ngarkuar raportin...' : 'Loading Report...'}</div>;
   if (!data) return <div className="p-8 text-center">{language === 'al' ? 'Raporti nuk u gjet.' : 'Report not found.'}</div>;
@@ -63,10 +66,10 @@ export default function InspectionReport() {
   return (
     <div className="min-h-screen bg-gray-100 p-8 print:p-0 print:bg-white">
       <div className="max-w-4xl mx-auto mb-6 flex justify-between print:hidden">
-        <button onClick={() => navigate('/inspections')} className="flex items-center gap-2 text-gray-600 hover:text-gray-900">
+        <button onClick={() => navigate('/inspections')} className="btn btn-ghost -ml-2">
           <ArrowLeft size={20} /> {language === 'al' ? 'Kthehu tek Inspektimet' : 'Back to Inspections'}
         </button>
-        <button onClick={() => window.print()} className="bg-blue-600 text-white px-5 py-2.5 rounded-lg flex items-center gap-2 font-bold hover:bg-blue-700 shadow-lg">
+        <button onClick={() => window.print()} className="btn btn-primary">
           <Printer size={20} /> {language === 'al' ? 'Printo Raportin' : 'Print Report'}
         </button>
       </div>
@@ -77,7 +80,7 @@ export default function InspectionReport() {
           <div className="flex items-center gap-4">
             {shop?.logo_url && <img src={shop.logo_url} alt="Logo" className="w-16 h-16 object-contain" />}
             <div>
-              <h1 className="text-3xl font-black text-gray-900 tracking-tight uppercase">
+              <h1 className="text-3xl font-semibold text-gray-900 tracking-tight uppercase">
                 {language === 'al' ? 'Raporti Vizual i Inspektimit të Veturës' : 'Visual Vehicle Inspection Report'}
               </h1>
               <h2 className="text-xl font-bold text-blue-600">{shop?.name}</h2>
@@ -113,7 +116,7 @@ export default function InspectionReport() {
         {(data.damage_image || data.damage_notes) && (
           <div className="mb-8 border-2 border-gray-200 rounded-lg overflow-hidden page-break-inside-avoid">
             <div className="bg-gray-100 p-3 border-b-2 border-gray-200">
-              <h3 className="font-black text-gray-800 uppercase tracking-wider">
+              <h3 className="font-semibold text-gray-800 uppercase tracking-wider">
                 {language === 'al' ? 'Dëmtimet e Karrocerisë & Shënime' : 'Body Damage & Notes'}
               </h3>
             </div>
@@ -145,7 +148,7 @@ export default function InspectionReport() {
           {Object.keys(categories).map((category, idx) => (
             <div key={idx} className="border-2 border-gray-200 rounded-lg overflow-hidden page-break-inside-avoid">
               <div className="bg-gray-100 p-3 border-b-2 border-gray-200">
-                <h3 className="font-black text-gray-800 uppercase tracking-wider">{category}</h3>
+                <h3 className="font-semibold text-gray-800 uppercase tracking-wider">{category}</h3>
               </div>
               <div className="divide-y divide-gray-100">
                 {categories[category].map((info, i) => (

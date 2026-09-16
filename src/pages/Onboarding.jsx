@@ -97,10 +97,10 @@ export default function Onboarding({ onComplete }) {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
-      <div className="max-w-md w-full bg-white rounded-xl shadow-2xl p-8 animate-fade-in">
+      <div className="max-w-md w-full bg-white rounded-lg border border-gray-200 shadow-sm p-6 sm:p-8 animate-fade-in">
         <div className="text-center mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">{language === 'al' ? 'Konfiguro Ofiçinën Tënde' : 'Setup Your Workshop'}</h1>
-          <p className="text-gray-500">{language === 'al' ? 'Detajet profesionale për faturat e tua.' : 'Professional details for your invoices.'}</p>
+          <h1 className="text-xl font-semibold text-gray-900">{language === 'al' ? 'Konfiguro Ofiçinën Tënde' : 'Setup Your Workshop'}</h1>
+          <p className="text-sm text-gray-500 mt-1">{language === 'al' ? 'Detajet profesionale për faturat e tua.' : 'Professional details for your invoices.'}</p>
         </div>
 
         <form onSubmit={createWorkshop} className="space-y-4">
@@ -172,7 +172,7 @@ export default function Onboarding({ onComplete }) {
           </div>
           
           <button type="submit" disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black text-lg py-4 rounded-xl shadow-lg transition-transform hover:scale-105 mt-6 flex justify-center items-center gap-2">
+            className="btn btn-primary btn-lg w-full mt-6">
             {loading ? (language === 'al' ? 'Po konfigurohet...' : 'Setting up...') : (language === 'al' ? 'Hap Ofiçinën' : 'Launch Workshop')}
           </button>
         </form>

@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { useToast } from '../components/ui';
 
 const SyncContext = createContext();
 
@@ -7,6 +8,7 @@ export function SyncProvider({ children }) {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [syncQueue, setSyncQueue] = useState([]);
   const [isSyncing, setIsSyncing] = useState(false);
+  const toast = useToast();
 
   // 1. Load the queue from the phone's local memory on boot
   useEffect(() => {
@@ -80,7 +82,7 @@ export function SyncProvider({ children }) {
     setIsSyncing(false);
     
     if (failedItems.length === 0 && currentQueue.length > 0) {
-      alert('✅ Back online! All offline data has been synced to the cloud.');
+      toast.success('Back online — all offline changes have been synced.');
     }
   };
 

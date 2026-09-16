@@ -3,7 +3,10 @@ import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import { ClipboardCheck, Plus, X, Car, CheckCircle, AlertTriangle, XCircle, Search, Eraser, Pencil, Trash2, Settings, Save } from 'lucide-react';
 import { useLanguage } from '../LanguageContext'; 
-import { translations } from '../translations'; 
+import { translations } from '../translations';
+import { useToast, EmptyState, CardSkeleton } from '../components/ui';
+import { vehicleName } from '../lib/vehicle';
+import { formatMoney, formatDate } from '../lib/format'; 
 
 const CAR_DIAGRAMS = {
   'Sedan': '/Sedan.png',
@@ -23,6 +26,7 @@ export default function Inspections() {
   const navigate = useNavigate();
   const { language } = useLanguage();
   const t = translations[language] || translations.en;
+  const toast = useToast();
 
   const [inspections, setInspections] = useState([]);
   const [cars, setCars] = useState([]);
@@ -164,9 +168,9 @@ export default function Inspections() {
       await supabase.from('workshops').update({ inspection_template: editingTemplate }).eq('id', workshopId);
       setInspectionTemplate(editingTemplate);
       setShowTemplateEditor(false);
-      alert(language === 'al' ? 'Modeli i inspektimit u ruajt me sukses!' : 'Inspection template saved successfully!');
+      toast.success(language === 'al' ? 'Modeli i inspektimit u ruajt me sukses!' : 'Inspection template saved successfully!');
     } catch (error) {
-      alert("Error: " + error.message);
+      toast.error("Error: " + error.message);
     }
   };
 
@@ -272,7 +276,7 @@ export default function Inspections() {
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!selectedCarId) return alert(language === 'al' ? 'Ju lutem zgjidhni një veturë.' : 'Please select a car.');
+    if (!selectedCarId) return toast.error(language === 'al' ? 'Ju lutem zgjidhni një veturë.' : 'Please select a car.');
     
     try {
       const payload = {
@@ -284,23 +288,23 @@ export default function Inspections() {
       else await supabase.from('inspections').insert([payload]);
 
       handleCancel(); fetchData(); 
-    } catch (error) { alert((language === 'al' ? 'Gabim gjatë ruajtjes: ' : 'Error saving inspection: ') + error.message); }
+    } catch (error) { toast.error((language === 'al' ? 'Gabim gjatë ruajtjes: ' : 'Error saving inspection: ') + error.message); }
   }
 
   return (
-    <div className="p-4 md:p-8 max-w-7xl mx-auto">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+    <div className="page">
+      <div className="page-header">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-800">{t.inspections || (language === 'al' ? 'Inspektimet e Veturave' : 'Vehicle Inspections')}</h1>
-          <p className="text-gray-500 mt-1">{language === 'al' ? 'Raporte dixhitale të inspektimit të shumëfishtë' : 'Digital multi-point inspection reports'}</p>
+          <h1 className="page-title">{t.inspections || (language === 'al' ? 'Inspektimet e Veturave' : 'Vehicle Inspections')}</h1>
+          <p className="page-subtitle">{language === 'al' ? 'Raporte dixhitale të inspektimit të shumëfishtë' : 'Digital multi-point inspection reports'}</p>
         </div>
         {!showForm && !showTemplateEditor && (
           <div className="flex gap-2 w-full md:w-auto">
-            <button onClick={() => setShowTemplateEditor(true)} className="flex-1 md:flex-none bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2.5 rounded-lg flex justify-center items-center gap-2 font-bold transition-colors">
-              <Settings size={20} /> {language === 'al' ? 'Kategoritë' : 'Edit Items'}
+            <button onClick={() => setShowTemplateEditor(true)} className="btn btn-secondary flex-1 md:flex-none">
+              <Settings size={16} /> {language === 'al' ? 'Kategoritë' : 'Checklist items'}
             </button>
-            <button onClick={() => setShowForm(true)} className="flex-1 md:flex-none bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg flex justify-center items-center gap-2 font-bold shadow-md">
-              <Plus size={20} /> {language === 'al' ? 'Inspektim i Ri' : 'New Inspection'}
+            <button onClick={() => setShowForm(true)} className="btn btn-primary flex-1 md:flex-none">
+              <Plus size={16} /> {language === 'al' ? 'Inspektim i ri' : 'New inspection'}
             </button>
           </div>
         )}
@@ -310,7 +314,7 @@ export default function Inspections() {
         <div className="bg-white rounded-xl shadow-xl border border-gray-200 mb-8 overflow-hidden animate-fade-in max-w-4xl mx-auto">
           <div className="bg-gray-900 text-white p-6 flex justify-between items-center">
             <div>
-              <h2 className="text-xl font-black">{language === 'al' ? 'Menaxho Listën e Inspektimit' : 'Manage Inspection Checklist'}</h2>
+              <h2 className="text-xl font-semibold">{language === 'al' ? 'Menaxho Listën e Inspektimit' : 'Manage Inspection Checklist'}</h2>
               <p className="text-sm text-gray-400 mt-1">{language === 'al' ? 'Krijo listën tënde të personalizuar të pjesëve që duhet të kontrollohen gjithmonë.' : 'Create your custom checklist of items that must be checked.'}</p>
             </div>
             <button onClick={() => setShowTemplateEditor(false)} className="text-gray-400 hover:text-white"><X size={24}/></button>
@@ -321,7 +325,7 @@ export default function Inspections() {
               <div key={catIdx} className="bg-white border rounded-lg p-4 shadow-sm">
                 <div className="flex justify-between items-center mb-4">
                   <input 
-                    className="text-lg font-black text-blue-800 outline-none border-b-2 border-transparent focus:border-blue-500 bg-transparent"
+                    className="text-lg font-semibold text-blue-800 outline-none border-b-2 border-transparent focus:border-blue-500 bg-transparent"
                     value={cat.category}
                     onChange={(e) => updateCategoryName(catIdx, e.target.value)}
                   />
@@ -351,7 +355,7 @@ export default function Inspections() {
             </button>
 
             <div className="flex justify-end pt-4 border-t">
-              <button onClick={saveTemplate} className="bg-green-600 hover:bg-green-700 text-white px-8 py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg">
+              <button onClick={saveTemplate} className="btn btn-primary">
                 <Save size={20}/> {language === 'al' ? 'Ruaj Ndryshimet' : 'Save Template'}
               </button>
             </div>
@@ -362,7 +366,7 @@ export default function Inspections() {
       {showForm && !showTemplateEditor && (
         <div className="bg-white rounded-xl shadow-2xl border border-gray-200 mb-8 overflow-hidden animate-fade-in max-w-5xl mx-auto">
           <div className="bg-gray-900 text-white p-6 flex justify-between items-center">
-            <h2 className="text-xl md:text-2xl font-black flex items-center gap-3">
+            <h2 className="text-xl md:text-2xl font-semibold flex items-center gap-3">
               <ClipboardCheck size={28} className="text-blue-400" /> 
               {editingId 
                 ? (language === 'al' ? 'Ndrysho Raportin' : 'Edit Inspection Report') 
@@ -397,7 +401,7 @@ export default function Inspections() {
 
             <div className="mt-8 border rounded-xl overflow-hidden shadow-sm mb-8">
                <div className="bg-gray-100 border-b p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                 <h3 className="text-lg font-black text-gray-800">{language === 'al' ? 'Dëmtimet e Karrocerisë (Vizatoni problemet)' : 'Body Damage (Draw to mark issues)'}</h3>
+                 <h3 className="text-lg font-semibold text-gray-800">{language === 'al' ? 'Dëmtimet e Karrocerisë (Vizatoni problemet)' : 'Body Damage (Draw to mark issues)'}</h3>
                  
                  <div className="flex items-center gap-4 w-full md:w-auto">
                    <select className="flex-1 md:flex-none p-2 border border-gray-300 rounded text-sm outline-none bg-white font-bold text-gray-700" value={bodyType} onChange={handleBodyTypeChange}>
@@ -446,7 +450,7 @@ export default function Inspections() {
               {inspectionTemplate.map((cat, idx) => (
                 <div key={idx} className="border rounded-xl overflow-hidden shadow-sm">
                   <div className="bg-blue-50/50 border-b p-3 md:p-4">
-                    <h3 className="text-base md:text-lg font-black text-blue-900">{cat.category}</h3>
+                    <h3 className="text-base md:text-lg font-semibold text-blue-900">{cat.category}</h3>
                   </div>
                   <div className="divide-y divide-gray-100">
                     {cat.items.map((item, itemIdx) => {
@@ -514,8 +518,8 @@ export default function Inspections() {
             </div>
 
             <div className="mt-8 flex flex-col-reverse sm:flex-row justify-end gap-3 pt-6 border-t">
-              <button type="button" onClick={handleCancel} className="w-full sm:w-auto px-6 py-3 text-gray-600 font-bold hover:bg-gray-100 rounded-xl transition-colors text-center">{language === 'al' ? 'Anulo' : 'Cancel'}</button>
-              <button type="submit" className="w-full sm:w-auto px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl shadow-lg flex justify-center items-center gap-2 transition-transform hover:scale-105">
+              <button type="button" onClick={handleCancel} className="btn btn-secondary w-full sm:w-auto">{language === 'al' ? 'Anulo' : 'Cancel'}</button>
+              <button type="submit" className="btn btn-primary w-full sm:w-auto">
                  {editingId 
                     ? (language === 'al' ? 'Përditëso' : 'Update') 
                     : (language === 'al' ? 'Ruaj' : 'Save')}
@@ -527,12 +531,19 @@ export default function Inspections() {
 
       {!showForm && !showTemplateEditor && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {loading ? <p className="p-4">{language === 'al' ? 'Duke ngarkuar...' : 'Loading...'}</p> : inspections.map(insp => (
-            <div key={insp.id} className="bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow flex flex-col">
+          {!loading && inspections.length === 0 && (
+            <div className="col-span-full card">
+              <EmptyState icon={ClipboardCheck}
+                title={language === 'al' ? 'Nuk ka inspektime ende' : 'No inspections yet'}
+                description={language === 'al' ? 'Krijoni inspektimin e parë për një veturë.' : 'Create the first inspection for a vehicle.'} />
+            </div>
+          )}
+          {loading ? <CardSkeleton count={3} /> : inspections.map(insp => (
+            <div key={insp.id} className="card hover:border-gray-300 transition-colors flex flex-col">
               <div className="p-5 flex-1">
                 <div className="flex justify-between items-start mb-4">
                   <div>
-                    <h3 className="font-black text-lg text-gray-800 leading-tight">{insp.cars?.make} {insp.cars?.model}</h3>
+                    <h3 className="font-semibold text-lg text-gray-800 leading-tight">{vehicleName(insp.cars?.make, insp.cars?.model)}</h3>
                     <p className="text-sm text-gray-500 font-medium flex items-center gap-1 mt-1"><Car size={14}/> {insp.cars?.plate}</p>
                   </div>
                   <span className="text-[10px] md:text-xs font-bold text-gray-400 bg-gray-100 px-2 py-1 rounded">{new Date(insp.created_at).toLocaleDateString()}</span>
@@ -545,13 +556,13 @@ export default function Inspections() {
               </div>
 
               <div className="p-4 bg-gray-50 border-t flex gap-2">
-                 <button onClick={() => handleEdit(insp)} className="flex-1 text-sm text-blue-600 bg-blue-100 py-2 rounded font-bold hover:bg-blue-200 flex justify-center items-center gap-1">
+                 <button onClick={() => handleEdit(insp)} className="btn btn-secondary btn-sm flex-1">
                    <Pencil size={16}/> <span className="hidden sm:inline">{t.edit || (language === 'al' ? 'Ndrysho' : 'Edit')}</span>
                  </button>
-                 <button onClick={() => navigate(`/inspections/${insp.id}`)} className="flex-1 text-sm text-gray-700 border border-gray-300 py-2 rounded font-bold hover:bg-gray-100 flex justify-center items-center gap-1">
+                 <button onClick={() => navigate(`/inspections/${insp.id}`)} className="btn btn-secondary btn-sm flex-1">
                    <Search size={16}/> <span className="hidden sm:inline">{language === 'al' ? 'Shiko' : 'View'}</span>
                  </button>
-                 <button onClick={() => handleDelete(insp.id)} className="text-sm text-red-600 bg-red-100 px-3 py-2 rounded font-bold hover:bg-red-200 flex justify-center items-center">
+                 <button onClick={() => handleDelete(insp.id)} className="btn btn-danger btn-sm">
                    <Trash2 size={16}/>
                  </button>
               </div>

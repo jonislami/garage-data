@@ -3,10 +3,12 @@ import { supabase } from '../lib/supabase';
 import { useSync } from '../contexts/SyncContext';
 import { useLanguage } from '../LanguageContext';
 import { translations } from '../translations';
+import { formatMoney, formatDate } from '../lib/format';
+import { vehicleName } from '../lib/vehicle';
 import { CalendarDays, Calendar, ChevronLeft, ChevronRight, TrendingUp, TrendingDown, DollarSign, Wrench, Receipt, PieChart as PieChartIcon, BarChart3 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 
-const COLORS = ['#ef4444', '#f59e0b', '#3b82f6', '#8b5cf6', '#10b981', '#6366f1', '#ec4899', '#14b8a6', '#64748b'];
+const COLORS = ['#2c5698', '#5e8bc9', '#8fb0dc', '#3a424e', '#6b7585', '#98a2b0', '#b45309', '#0f766e', '#cdd3db'];
 
 export default function Reports() {
   const { isOnline } = useSync();
@@ -179,95 +181,86 @@ export default function Reports() {
   };
 
   return (
-    <div className="p-4 md:p-8 max-w-7xl mx-auto overflow-x-hidden">
+    <div className="page overflow-x-hidden">
       
       {/* HEADER & TOGGLE */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 md:mb-8 gap-4">
+      <div className="page-header">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-800">{language === 'al' ? 'Raportet Financiare' : 'Financial Reports'}</h1>
-          <p className="text-sm md:text-base text-gray-500 mt-1">{language === 'al' ? 'Pasqyrë e detajuar e të ardhurave dhe shpenzimeve' : 'Detailed overview of income and expenses'}</p>
+          <h1 className="page-title">{language === 'al' ? 'Raportet financiare' : 'Financial reports'}</h1>
+          <p className="page-subtitle">{language === 'al' ? 'Pasqyrë e detajuar e të ardhurave dhe shpenzimeve' : 'Detailed overview of income and expenses'}</p>
         </div>
         
-        <div className="flex bg-gray-200 p-1 rounded-lg w-full sm:w-auto justify-center">
-          <button onClick={() => setViewMode('daily')} className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 md:px-6 py-2 rounded-md font-bold text-sm transition-all ${viewMode === 'daily' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
-            <CalendarDays size={18}/> <span>{language === 'al' ? 'Ditor' : 'Daily'}</span>
+        <div className="flex bg-gray-100 border border-gray-200 p-0.5 rounded-md w-full sm:w-auto justify-center">
+          <button onClick={() => setViewMode('daily')} className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 h-8 px-3 md:px-4 rounded font-medium text-[13px] transition-colors ${viewMode === 'daily' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+            <CalendarDays size={15}/> <span>{language === 'al' ? 'Ditor' : 'Daily'}</span>
           </button>
-          <button onClick={() => setViewMode('monthly')} className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 md:px-6 py-2 rounded-md font-bold text-sm transition-all ${viewMode === 'monthly' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
-            <Calendar size={18}/> <span>{language === 'al' ? 'Mujor' : 'Monthly'}</span>
+          <button onClick={() => setViewMode('monthly')} className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 h-8 px-3 md:px-4 rounded font-medium text-[13px] transition-colors ${viewMode === 'monthly' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+            <Calendar size={15}/> <span>{language === 'al' ? 'Mujor' : 'Monthly'}</span>
           </button>
         </div>
       </div>
 
       {/* DATE NAVIGATOR - RREGULLUAR PER RESPONSIVE */}
-      <div className="flex flex-col sm:flex-row justify-center items-center gap-3 md:gap-4 mb-8 bg-white p-3 rounded-xl shadow-sm border border-gray-200 w-full md:w-fit mx-auto">
+      <div className="flex flex-col sm:flex-row items-center gap-2 mb-5 w-full md:w-fit">
         <div className="flex items-center justify-between w-full sm:w-auto gap-2 md:gap-4">
-          <button onClick={prevPeriod} className="p-2 bg-gray-50 border border-gray-200 rounded hover:bg-gray-100 text-gray-600 transition-colors"><ChevronLeft size={20}/></button>
-          <span className="text-base md:text-lg font-black text-gray-800 min-w-[130px] md:min-w-[160px] text-center">{dateTitle}</span>
-          <button onClick={nextPeriod} className="p-2 bg-gray-50 border border-gray-200 rounded hover:bg-gray-100 text-gray-600 transition-colors"><ChevronRight size={20}/></button>
+          <button onClick={prevPeriod} className="btn btn-secondary px-2"><ChevronLeft size={16}/></button>
+          <span className="text-sm font-semibold text-gray-900 min-w-[150px] text-center">{dateTitle}</span>
+          <button onClick={nextPeriod} className="btn btn-secondary px-2"><ChevronRight size={16}/></button>
         </div>
-        <button onClick={goToday} className="w-full sm:w-auto px-4 py-2 bg-blue-50 text-blue-600 border border-blue-100 rounded font-bold text-sm hover:bg-blue-100 transition-colors">
+        <button onClick={goToday} className="btn btn-secondary w-full sm:w-auto">
           {language === 'al' ? (viewMode === 'daily' ? 'Sot' : 'Ky Muaj') : (viewMode === 'daily' ? 'Today' : 'This Month')}
         </button>
       </div>
 
       {/* STATS CARDS */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-        <div className="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-gray-200 flex items-center gap-4 hover:shadow-md transition-shadow">
-          <div className="bg-green-100 p-3 md:p-4 rounded-full text-green-600"><TrendingUp size={24} /></div>
-          <div>
-            <p className="text-gray-500 font-bold text-xs uppercase tracking-wider">{language === 'al' ? 'Të Ardhurat' : 'Revenue'}</p>
-            <p className="text-xl md:text-2xl font-black text-gray-900 font-mono">{currency}{totalRevenue.toFixed(2)}</p>
-          </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
+        <div className="stat">
+          <p className="stat-label"><TrendingUp size={14} className="text-gray-400" /> {language === 'al' ? 'Të ardhurat' : 'Revenue'}</p>
+          <p className="stat-value">{formatMoney(totalRevenue, currency)}</p>
         </div>
-        <div className="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-gray-200 flex items-center gap-4 hover:shadow-md transition-shadow">
-          <div className="bg-red-100 p-3 md:p-4 rounded-full text-red-600"><TrendingDown size={24} /></div>
-          <div>
-            <p className="text-gray-500 font-bold text-xs uppercase tracking-wider">{language === 'al' ? 'Shpenzimet' : 'Expenses'}</p>
-            <p className="text-xl md:text-2xl font-black text-gray-900 font-mono">-{currency}{totalExpenses.toFixed(2)}</p>
-          </div>
+        <div className="stat">
+          <p className="stat-label"><TrendingDown size={14} className="text-gray-400" /> {language === 'al' ? 'Shpenzimet' : 'Expenses'}</p>
+          <p className="stat-value">{formatMoney(totalExpenses, currency)}</p>
         </div>
-        <div className={`p-4 md:p-6 rounded-xl shadow-sm border flex items-center gap-4 hover:shadow-md transition-shadow ${netProfit >= 0 ? 'bg-gray-900 border-gray-800' : 'bg-red-50 border-red-200'}`}>
-          <div className={`p-3 md:p-4 rounded-full ${netProfit >= 0 ? 'bg-gray-800 text-blue-400' : 'bg-red-100 text-red-600'}`}><DollarSign size={24} /></div>
-          <div>
-            <p className={`font-bold text-xs uppercase tracking-wider ${netProfit >= 0 ? 'text-gray-400' : 'text-red-500'}`}>{language === 'al' ? 'Fitimi Neto' : 'Net Profit'}</p>
-            <p className={`text-xl md:text-2xl font-black font-mono ${netProfit >= 0 ? 'text-white' : 'text-red-600'}`}>{currency}{netProfit.toFixed(2)}</p>
-          </div>
+        <div className="stat bg-gray-50">
+          <p className="stat-label"><DollarSign size={14} className="text-gray-400" /> {language === 'al' ? 'Fitimi neto' : 'Net profit'}</p>
+          <p className={`stat-value ${netProfit < 0 ? 'text-red-600' : 'text-emerald-700'}`}>{formatMoney(netProfit, currency)}</p>
         </div>
       </div>
 
       {/* CHARTS SECTION */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
         
         {/* Bar Chart (Trend) */}
-        <div className="lg:col-span-2 bg-white p-4 md:p-6 rounded-xl shadow-sm border border-gray-200 min-w-0">
-          <h2 className="text-base md:text-lg font-bold text-gray-800 mb-6 flex items-center gap-2">
-            <BarChart3 className="text-blue-600" size={20}/> 
+        <div className="lg:col-span-2 card p-4 min-w-0">
+          <h2 className="card-title mb-4 flex items-center gap-2">
+            <BarChart3 className="text-gray-400" size={16}/> 
             {viewMode === 'daily' 
-              ? (language === 'al' ? 'Ecuria (7 Ditët e Fundit)' : 'Trend (Last 7 Days)') 
-              : (language === 'al' ? 'Ecuria e Muajit' : 'Monthly Trend')}
+              ? (language === 'al' ? 'Ecuria (7 Ditët e Fundit)' : 'Last 7 days') 
+              : (language === 'al' ? 'Ecuria e Muajit' : 'This month by day')}
           </h2>
           <div className="h-64 md:h-72 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={barChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                <CartesianGrid vertical={false} stroke="#e3e7ec" />
                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#6B7280', fontSize: 10}} dy={10} />
-                <YAxis axisLine={false} tickLine={false} tick={{fill: '#6B7280', fontSize: 10}} tickFormatter={(value) => `${currency}${value}`} />
+                <YAxis axisLine={false} tickLine={false} tick={{fill: '#6B7280', fontSize: 10}} width={64} tickFormatter={(value) => formatMoney(value, currency).replace(/,00(?=\s|$)/, '')} />
                 <Tooltip 
                   cursor={{fill: '#F3F4F6'}} 
-                  formatter={(value, name) => [`${currency}${value}`, language === 'al' && name === 'Revenue' ? 'Të ardhurat' : language === 'al' && name === 'Expenses' ? 'Shpenzimet' : name]} 
+                  formatter={(value, name) => [formatMoney(value, currency), language === 'al' && name === 'Revenue' ? 'Të ardhurat' : language === 'al' && name === 'Expenses' ? 'Shpenzimet' : name]} 
                 />
-                <Bar dataKey="Revenue" fill="#2563EB" radius={[4, 4, 0, 0]} maxBarSize={40} />
-                <Bar dataKey="Expenses" fill="#EF4444" radius={[4, 4, 0, 0]} maxBarSize={40} />
+                <Bar dataKey="Revenue" fill="#2c5698" radius={[2, 2, 0, 0]} maxBarSize={28} />
+                <Bar dataKey="Expenses" fill="#cdd3db" radius={[2, 2, 0, 0]} maxBarSize={28} />
               </BarChart>
             </ResponsiveContainer>
           </div>
         </div>
 
         {/* Pie Chart (Expense Breakdown) */}
-        <div className="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-gray-200 flex flex-col min-w-0">
-          <h2 className="text-base md:text-lg font-bold text-gray-800 mb-2 flex items-center gap-2">
-            <PieChartIcon className="text-red-500" size={20}/> 
-            {language === 'al' ? 'Ndarja e Shpenzimeve' : 'Expense Breakdown'}
+        <div className="card p-4 flex flex-col min-w-0">
+          <h2 className="card-title mb-2 flex items-center gap-2">
+            <PieChartIcon className="text-gray-400" size={16}/> 
+            {language === 'al' ? 'Ndarja e Shpenzimeve' : 'Expenses by category'}
           </h2>
           <div className="flex-1 min-h-[250px] w-full">
             {pieChartData.length === 0 ? (
@@ -283,14 +276,14 @@ export default function Reports() {
                     cy="50%"
                     innerRadius={50}
                     outerRadius={70}
-                    paddingAngle={5}
+                    paddingAngle={0}
                     dataKey="value"
                   >
                     {pieChartData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
-                  <Tooltip formatter={(value) => `${currency}${value}`} />
+                  <Tooltip formatter={(value) => formatMoney(value, currency)} />
                   <Legend 
                     formatter={(value) => <span className="text-xs text-gray-700 font-medium">{categoryTranslations[value] || value}</span>} 
                     layout="horizontal" 
@@ -307,51 +300,51 @@ export default function Reports() {
       </div>
 
       {/* DETAILED LISTS */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         
         {/* Tabela e Punëve */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden min-w-0">
-          <div className="bg-gray-50 p-4 border-b flex justify-between items-center">
+        <div className="card overflow-hidden min-w-0">
+          <div className="card-header">
             <div className="flex items-center gap-2">
-              <Wrench className="text-blue-600" size={20}/>
-              <h2 className="font-bold text-gray-800 text-sm md:text-base">{language === 'al' ? 'Punët e Përfunduara' : 'Completed Jobs'}</h2>
+              <Wrench className="text-gray-400" size={16}/>
+              <h2 className="card-title">{language === 'al' ? 'Punët e Përfunduara' : 'Completed jobs'}</h2>
             </div>
-            <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-xs font-bold">{filteredServices.length}</span>
+            <span className="badge badge-gray font-mono">{filteredServices.length}</span>
           </div>
           <div className="divide-y divide-gray-100 max-h-[400px] overflow-y-auto">
             {loading ? <p className="p-4 text-center text-gray-500">{language === 'al' ? 'Duke ngarkuar...' : 'Loading...'}</p> : 
              filteredServices.length === 0 ? <p className="p-8 text-center text-gray-400 italic">{language === 'al' ? 'Nuk ka punë në këtë periudhë.' : 'No jobs in this period.'}</p> :
              filteredServices.map(s => (
-              <div key={s.id} className="p-4 flex justify-between items-center hover:bg-gray-50 transition-colors">
+              <div key={s.id} className="px-4 py-3 flex justify-between items-center hover:bg-gray-50 transition-colors">
                 <div className="min-w-0 flex-1 pr-4">
-                  <p className="font-bold text-gray-800 text-sm truncate">{s.cars?.make} {s.cars?.model}</p>
-                  <p className="text-xs text-gray-500 truncate">{s.cars?.plate} • {new Date(s.service_date || s.created_at).toLocaleDateString()}</p>
+                  <p className="font-medium text-gray-900 text-sm truncate">{vehicleName(s.cars?.make, s.cars?.model)}</p>
+                  <p className="text-xs text-gray-500 truncate">{s.cars?.plate} • {formatDate(s.service_date || s.created_at)}</p>
                 </div>
-                <span className="font-mono font-bold text-green-600 shrink-0">+{currency}{s.cost}</span>
+                <span className="font-mono font-medium text-gray-900 shrink-0">{formatMoney(s.cost, currency)}</span>
               </div>
             ))}
           </div>
         </div>
 
         {/* Tabela e Shpenzimeve */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden min-w-0">
-          <div className="bg-gray-50 p-4 border-b flex justify-between items-center">
+        <div className="card overflow-hidden min-w-0">
+          <div className="card-header">
             <div className="flex items-center gap-2">
-              <Receipt className="text-red-500" size={20}/>
-              <h2 className="font-bold text-gray-800 text-sm md:text-base">{language === 'al' ? 'Lista e Shpenzimeve' : 'Expenses List'}</h2>
+              <Receipt className="text-gray-400" size={16}/>
+              <h2 className="card-title">{language === 'al' ? 'Lista e Shpenzimeve' : 'Expenses'}</h2>
             </div>
-            <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded-full text-xs font-bold">{filteredExpenses.length}</span>
+            <span className="badge badge-gray font-mono">{filteredExpenses.length}</span>
           </div>
           <div className="divide-y divide-gray-100 max-h-[400px] overflow-y-auto">
             {loading ? <p className="p-4 text-center text-gray-500">{language === 'al' ? 'Duke ngarkuar...' : 'Loading...'}</p> : 
              filteredExpenses.length === 0 ? <p className="p-8 text-center text-gray-400 italic">{language === 'al' ? 'Nuk ka shpenzime në këtë periudhë.' : 'No expenses in this period.'}</p> :
              filteredExpenses.map(e => (
-              <div key={e.id} className="p-4 flex justify-between items-center hover:bg-gray-50 transition-colors">
+              <div key={e.id} className="px-4 py-3 flex justify-between items-center hover:bg-gray-50 transition-colors">
                 <div className="min-w-0 flex-1 pr-4">
-                  <p className="font-bold text-gray-800 text-sm truncate">{categoryTranslations[e.category] || e.category}</p>
-                  <p className="text-xs text-gray-500 truncate">{e.description || '-'} • {new Date(e.expense_date).toLocaleDateString()}</p>
+                  <p className="font-medium text-gray-900 text-sm truncate">{categoryTranslations[e.category] || e.category}</p>
+                  <p className="text-xs text-gray-500 truncate">{e.description || '-'} • {formatDate(e.expense_date)}</p>
                 </div>
-                <span className="font-mono font-bold text-red-500 shrink-0">-{currency}{e.amount}</span>
+                <span className="font-mono font-medium text-gray-700 shrink-0">{formatMoney(e.amount, currency)}</span>
               </div>
             ))}
           </div>

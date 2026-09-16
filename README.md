@@ -1,16 +1,36 @@
-# React + Vite
+# GarageData
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Workshop management for auto repair shops: jobs, invoices, inventory, clients, vehicles, inspections, appointments, expenses and reports. Built with React, Vite, Tailwind CSS and Supabase. Works offline (PWA) and in Albanian and English.
 
-Currently, two official plugins are available:
+## Getting started
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+```bash
+npm install
+cp .env.example .env.local   # then fill in your Supabase URL and anon key
+npm run dev
+```
 
-## React Compiler
+## Database migration (required for part numbers)
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Stock items now have a **part number** (OEM / SKU) that you can search by.
+Run this once in Supabase → SQL Editor:
 
-## Expanding the ESLint configuration
+```
+supabase/migrations/20260916_add_inventory_part_number.sql
+```
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+Until the migration is run, the app still works. Parts are saved without the part number, and the app shows a notice.
+
+## Backup & restore
+
+Settings → **Backup & restore**
+
+- **Download backup**: saves one `.json` file with clients, vehicles, stock, invoices (with line items), expenses, appointments and inspections.
+- **Export for Excel**: CSV files for stock, clients and invoices.
+- **Restore**: choose a backup file, pick what to restore (stock, clients & vehicles, invoices, …), then confirm.
+  Restore is a *merge*. Missing records are added and records with the same ID are overwritten. Nothing created after the backup is deleted.
+  Invoices are restored together with the vehicles and clients they belong to.
+
+## Design system
+
+Shared styles are in `src/index.css` (`.btn`, `.input`, `.card`, `.table`, `.badge`, `.plate`, …) and shared components are in `src/components/ui.jsx` (`PageHeader`, `SearchInput`, `EmptyState`, skeletons and toasts). Corners are small (4–8px) and there are no pill-shaped buttons.

@@ -15,17 +15,15 @@ export default function AuthForm() {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50 relative overflow-hidden w-full">
-      
-      {/* Background Decor (Për ta bërë të duket i bukur) */}
-      <div className="absolute top-[-10%] left-[-10%] w-96 h-96 bg-blue-400 rounded-full mix-blend-multiply filter blur-[100px] opacity-20 pointer-events-none"></div>
-      <div className="absolute bottom-[-10%] right-[-10%] w-96 h-96 bg-green-400 rounded-full mix-blend-multiply filter blur-[100px] opacity-20 pointer-events-none"></div>
-
-      <div className="w-full max-w-md p-8 bg-white rounded-3xl shadow-2xl border border-gray-100 relative z-10">
-        <h2 className="mb-2 text-3xl font-black text-center text-gray-900">
-          GarageData
-        </h2>
-        <p className="mb-8 text-center text-gray-500 font-medium">
+    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 px-4 w-full">
+      <div className="w-full max-w-sm">
+        <div className="flex items-center justify-center gap-2.5 mb-6">
+          <img src="/applogo.png" alt="" className="h-9 w-9 object-contain" />
+          <span className="text-xl font-semibold tracking-tight text-gray-900">Garage<span className="text-blue-600">Data</span></span>
+        </div>
+      <div className="w-full p-6 sm:p-8 bg-white rounded-lg border border-gray-200 shadow-sm">
+        <h2 className="text-lg font-semibold text-gray-900">{isAl ? 'Kyçu' : 'Sign in'}</h2>
+        <p className="mb-5 text-sm text-gray-500">
           {isAl ? 'Kyçu për të menaxhuar ofiçinën tënde' : 'Sign in to manage your workshop'}
         </p>
         
@@ -37,9 +35,23 @@ export default function AuthForm() {
             variables: {
               default: {
                 colors: {
-                  brand: '#2563eb', // Blue-600
-                  brandAccent: '#1d4ed8', // Blue-700
-                }
+                  brand: '#2c5698',
+                  brandAccent: '#25467b',
+                  inputBorder: '#cdd3db',
+                  inputBorderFocus: '#3d6db4',
+                  inputBorderHover: '#98a2b0',
+                },
+                radii: {
+                  borderRadiusButton: '5px',
+                  buttonBorderRadius: '5px',
+                  inputBorderRadius: '5px',
+                },
+                fonts: {
+                  bodyFontFamily: 'Inter, system-ui, sans-serif',
+                  buttonFontFamily: 'Inter, system-ui, sans-serif',
+                  inputFontFamily: 'Inter, system-ui, sans-serif',
+                  labelFontFamily: 'Inter, system-ui, sans-serif',
+                },
               }
             }
           }}
@@ -62,17 +74,18 @@ export default function AuthForm() {
         />
 
         {/* Pjesa ku ftojmë klientët të na kontaktojnë */}
-        <div className="mt-8 pt-6 border-t border-gray-100 text-center">
+        <div className="mt-6 pt-5 border-t border-gray-200 text-center">
           <p className="text-gray-500 text-sm mb-3">
             {isAl ? 'Nuk keni ende llogari për ofiçinën tuaj?' : 'Don\'t have an account for your workshop yet?'}
           </p>
           <button 
             onClick={handleContactClick} 
-            className="inline-block w-full text-blue-600 font-bold hover:text-blue-800 transition-colors bg-blue-50 hover:bg-blue-100 px-5 py-3 rounded-xl"
+            className="btn btn-secondary w-full"
           >
             {isAl ? 'Kontaktoni për të marrë akses' : 'Contact us to get access'}
           </button>
         </div>
+      </div>
       </div>
     </div>
   )

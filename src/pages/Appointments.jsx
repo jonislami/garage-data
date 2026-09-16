@@ -3,13 +3,17 @@ import { supabase } from '../lib/supabase';
 import { Plus, Trash2, Calendar as CalendarIcon, Clock, CheckCircle, Car, User, X, Pencil, ChevronLeft, ChevronRight, List, CalendarDays } from 'lucide-react';
 import { useSync } from '../contexts/SyncContext'; 
 import { useLanguage } from '../LanguageContext'; 
-import { translations } from '../translations'; 
+import { translations } from '../translations';
+import { useToast } from '../components/ui';
+import { vehicleName } from '../lib/vehicle';
+import { formatMoney, formatDate } from '../lib/format'; 
 
 export default function Appointments() {
   const { isOnline, addToQueue } = useSync(); 
   
   const { language } = useLanguage();
   const t = translations[language] || translations.en;
+  const toast = useToast();
 
   const [appointments, setAppointments] = useState([]);
   const [cars, setCars] = useState([]);
@@ -126,7 +130,7 @@ export default function Appointments() {
 
         if (!id.toString().startsWith('temp-')) {
           addToQueue('appointments', 'DELETE', { id });
-          alert(language === 'al' ? 'Offline: Takimi u fshi lokalisht. Do të sinkronizohet kur të kthehet interneti.' : 'Offline: Appointment deleted locally. Will sync to cloud when internet returns.');
+          toast.info(language === 'al' ? 'Offline: Takimi u fshi lokalisht. Do të sinkronizohet kur të kthehet interneti.' : 'Offline: Appointment deleted locally. Will sync to cloud when internet returns.');
         }
         setShowForm(false);
         return; 
@@ -138,14 +142,14 @@ export default function Appointments() {
         setShowForm(false);
         fetchData();
       } catch (error) {
-        alert((language === 'al' ? 'Gabim gjatë fshirjes: ' : 'Error deleting appointment: ') + error.message);
+        toast.error((language === 'al' ? 'Gabim gjatë fshirjes: ' : 'Error deleting appointment: ') + error.message);
       }
     }
   }
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!formData.car_id) return alert(language === 'al' ? 'Ju lutem zgjidhni një automjet.' : 'Please select a vehicle.');
+    if (!formData.car_id) return toast.error(language === 'al' ? 'Ju lutem zgjidhni një automjet.' : 'Please select a vehicle.');
 
     try {
       let workshopId = localStorage.getItem('sonic_workshop_id');
@@ -190,7 +194,7 @@ export default function Appointments() {
           const updatedApts = existingCache.map(apt => apt.id === editingId ? { ...apt, ...optimisticAptData } : apt);
           setAppointments(updatedApts);
           localStorage.setItem('sonic_appointments_cache', JSON.stringify(updatedApts));
-          alert(language === 'al' ? 'Offline: Takimi u përditësua lokalisht. Do të sinkronizohet kur të kthehet interneti.' : 'Offline: Appointment updated locally. Will sync when internet returns.');
+          toast.info(language === 'al' ? 'Offline: Takimi u përditësua lokalisht. Do të sinkronizohet kur të kthehet interneti.' : 'Offline: Appointment updated locally. Will sync when internet returns.');
         } else {
           addToQueue('appointments', 'INSERT', payload);
           const tempApt = { id: 'temp-' + Date.now(), ...optimisticAptData, created_at: new Date().toISOString() };
@@ -199,7 +203,7 @@ export default function Appointments() {
           
           setAppointments(newAptsList);
           localStorage.setItem('sonic_appointments_cache', JSON.stringify(newAptsList));
-          alert(language === 'al' ? 'Offline: Takimi i ri u ruajt lokalisht. Do të sinkronizohet kur të kthehet interneti.' : 'Offline: New appointment saved locally. Will sync when internet returns.');
+          toast.info(language === 'al' ? 'Offline: Takimi i ri u ruajt lokalisht. Do të sinkronizohet kur të kthehet interneti.' : 'Offline: New appointment saved locally. Will sync when internet returns.');
         }
 
         handleCancel();
@@ -216,7 +220,7 @@ export default function Appointments() {
       
       handleCancel(); 
       fetchData();
-    } catch (error) { alert((language === 'al' ? 'Gabim: ' : 'Error: ') + error.message); }
+    } catch (error) { toast.error((language === 'al' ? 'Gabim: ' : 'Error: ') + error.message); }
   }
 
   function formatDateTime(isoString) {
@@ -245,27 +249,27 @@ export default function Appointments() {
   };
 
   return (
-    <div className="p-4 md:p-8">
-      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 gap-4">
+    <div className="page">
+      <div className="page-header">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-800">{t.page_title_appointments || (language === 'al' ? 'Takimet' : 'Appointments')}</h1>
-          <p className="text-sm md:text-base text-gray-500 mt-1">{t.page_desc_appointments || (language === 'al' ? 'Planifiko dhe menaxho vizitat e ardhshme në garazh' : 'Schedule and manage upcoming garage visits')}</p>
+          <h1 className="page-title">{t.page_title_appointments || (language === 'al' ? 'Takimet' : 'Appointments')}</h1>
+          <p className="page-subtitle">{t.page_desc_appointments || (language === 'al' ? 'Planifiko dhe menaxho vizitat e ardhshme në garazh' : 'Schedule and manage upcoming garage visits')}</p>
         </div>
         
-        <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
           {/* Calendar/List Toggle */}
-          <div className="flex bg-gray-200 p-1 rounded-lg w-full sm:w-auto justify-center">
-            <button onClick={() => setViewMode('calendar')} className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-md font-bold text-sm transition-all ${viewMode === 'calendar' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
-              <CalendarDays size={18}/> <span>{language === 'al' ? 'Kalendar' : 'Calendar'}</span>
+          <div className="flex bg-gray-100 border border-gray-200 p-0.5 rounded-md w-full sm:w-auto justify-center">
+            <button onClick={() => setViewMode('calendar')} className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 h-8 px-3 rounded font-medium text-[13px] transition-colors ${viewMode === 'calendar' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+              <CalendarDays size={15}/> <span>{language === 'al' ? 'Kalendar' : 'Calendar'}</span>
             </button>
-            <button onClick={() => setViewMode('list')} className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-md font-bold text-sm transition-all ${viewMode === 'list' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
-              <List size={18}/> <span>{language === 'al' ? 'Listë' : 'List'}</span>
+            <button onClick={() => setViewMode('list')} className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 h-8 px-3 rounded font-medium text-[13px] transition-colors ${viewMode === 'list' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+              <List size={15}/> <span>{language === 'al' ? 'Listë' : 'List'}</span>
             </button>
           </div>
 
           {!showForm && (
-            <button onClick={() => { setEditingId(null); setShowForm(true); }} className="flex-1 sm:flex-none bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg flex justify-center items-center gap-2 font-bold shadow-md">
-              <Plus size={20} /> {language === 'al' ? 'Takim i Ri' : 'New Appointment'}
+            <button onClick={() => { setEditingId(null); setShowForm(true); }} className="btn btn-primary flex-1 sm:flex-none">
+              <Plus size={16} /> {language === 'al' ? 'Takim i ri' : 'New appointment'}
             </button>
           )}
         </div>
@@ -274,7 +278,7 @@ export default function Appointments() {
       {showForm && (
         <div className="bg-white p-6 rounded-xl shadow-xl border border-gray-200 mb-8 max-w-3xl animate-fade-in mx-auto">
           <div className="flex justify-between items-center mb-6 border-b pb-4">
-            <h2 className="text-xl font-black text-gray-800 flex items-center gap-2">
+            <h2 className="text-xl font-semibold text-gray-800 flex items-center gap-2">
               <CalendarIcon size={24} className="text-blue-600"/> 
               {editingId 
                 ? (language === 'al' ? 'Ndrysho Takimin' : 'Edit Appointment') 
@@ -300,10 +304,10 @@ export default function Appointments() {
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase mb-1">{language === 'al' ? 'Statusi' : 'Status'}</label>
                 <select className="w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 bg-white font-bold" value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})}>
-                  <option value="Scheduled" className="text-blue-600">📅 {language === 'al' ? 'E Planifikuar' : 'Scheduled'}</option>
-                  <option value="In Progress" className="text-orange-600">⏳ {language === 'al' ? 'Në Proces' : 'In Progress'}</option>
-                  <option value="Completed" className="text-green-600">✅ {language === 'al' ? 'Përfunduar' : 'Completed'}</option>
-                  <option value="Cancelled" className="text-red-600">❌ {language === 'al' ? 'Anuluar' : 'Cancelled'}</option>
+                  <option value="Scheduled" className="text-blue-600">{language === 'al' ? 'E Planifikuar' : 'Scheduled'}</option>
+                  <option value="In Progress" className="text-orange-600">{language === 'al' ? 'Në Proces' : 'In Progress'}</option>
+                  <option value="Completed" className="text-green-600">{language === 'al' ? 'Përfunduar' : 'Completed'}</option>
+                  <option value="Cancelled" className="text-red-600">{language === 'al' ? 'Anuluar' : 'Cancelled'}</option>
                 </select>
               </div>
             </div>
@@ -322,11 +326,11 @@ export default function Appointments() {
             
             <div className="flex justify-end gap-3 pt-4 border-t">
               {editingId && (
-                <button type="button" onClick={() => handleDelete(editingId)} className="bg-red-50 text-red-600 px-4 py-3 rounded-xl font-bold hover:bg-red-100 flex items-center gap-2">
+                <button type="button" onClick={() => handleDelete(editingId)} className="btn btn-danger">
                   <Trash2 size={18}/> <span className="hidden sm:inline">{language === 'al' ? 'Fshi' : 'Delete'}</span>
                 </button>
               )}
-              <button type="submit" className="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-700 shadow-md">
+              <button type="submit" className="btn btn-primary">
                 {language === 'al' ? 'Ruaj Takimin' : 'Save Appointment'}
               </button>
             </div>
@@ -339,7 +343,7 @@ export default function Appointments() {
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-8 animate-fade-in w-full">
           {/* Calendar Header */}
           <div className="p-3 md:p-4 border-b bg-gray-50 flex items-center justify-between">
-            <h2 className="text-lg md:text-xl font-black text-gray-800">
+            <h2 className="text-lg md:text-xl font-semibold text-gray-800">
               {currentMonths[currentMonthIndex]} {currentYear}
             </h2>
             <div className="flex gap-1 md:gap-2">
@@ -356,7 +360,7 @@ export default function Appointments() {
             {/* Days Header */}
             <div className="grid grid-cols-7 border-b border-gray-200 bg-white">
               {currentDays.map((dayName, i) => (
-                <div key={i} className="p-1 md:p-3 text-center text-[10px] md:text-xs font-black text-gray-400 uppercase tracking-wider border-r last:border-r-0">
+                <div key={i} className="p-1 md:p-3 text-center text-[10px] md:text-xs font-semibold text-gray-400 uppercase tracking-wider border-r last:border-r-0">
                   {dayName}
                 </div>
               ))}
@@ -383,7 +387,7 @@ export default function Appointments() {
                     }}
                     className={`bg-white min-h-[80px] md:min-h-[120px] p-1 md:p-2 flex flex-col gap-1 border-r border-b cursor-pointer hover:bg-blue-50/30 transition-colors ${isToday ? 'bg-blue-50/50' : ''}`}
                   >
-                    <span className={`text-xs md:text-sm font-bold w-5 h-5 md:w-7 md:h-7 flex items-center justify-center rounded-full mb-1 ${isToday ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500'}`}>
+                    <span className={`text-xs md:text-sm font-bold w-5 h-5 md:w-7 md:h-7 flex items-center justify-center rounded mb-1 ${isToday ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500'}`}>
                       {dayNum}
                     </span>
                     
@@ -443,20 +447,20 @@ export default function Appointments() {
               <div key={apt.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow flex flex-col">
                 <div className="p-4 border-b bg-gray-50 flex justify-between items-start">
                   <div>
-                    <div className="flex items-center gap-2 text-gray-800 font-black mb-1">
+                    <div className="flex items-center gap-2 text-gray-800 font-semibold mb-1">
                       <CalendarIcon size={16} className="text-blue-500"/> {date}
                     </div>
                     <div className="flex items-center gap-2 text-gray-600 text-sm font-bold">
                       <Clock size={16} className="text-blue-500"/> {time}
                     </div>
                   </div>
-                  <span className={`px-2 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${statusColor}`}>
+                  <span className={`px-2 py-1 rounded text-[10px] font-semibold uppercase tracking-wider ${statusColor}`}>
                     {displayStatus}
                   </span>
                 </div>
                 
                 <div className="p-4 flex-1">
-                  <h3 className="font-bold text-gray-900 mb-1 flex items-center gap-2"><Car size={16} className="text-gray-400"/> {apt.cars?.make} {apt.cars?.model}</h3>
+                  <h3 className="font-bold text-gray-900 mb-1 flex items-center gap-2"><Car size={16} className="text-gray-400"/> {vehicleName(apt.cars?.make, apt.cars?.model)}</h3>
                   <p className="text-sm font-mono text-gray-500 mb-3">{apt.cars?.plate}</p>
                   <p className="text-sm text-gray-700 flex items-center gap-2 mb-4"><User size={14} className="text-gray-400"/> {apt.cars?.clients?.full_name} ({apt.cars?.clients?.phone})</p>
                   
@@ -467,10 +471,10 @@ export default function Appointments() {
                 </div>
 
                 <div className="p-4 border-t border-gray-100 flex gap-2 bg-white">
-                  <button onClick={() => handleEdit(apt)} className="flex-1 text-sm text-blue-600 bg-blue-50 py-2 rounded font-bold hover:bg-blue-100 flex justify-center items-center gap-1">
+                  <button onClick={() => handleEdit(apt)} className="btn btn-secondary btn-sm flex-1">
                     <Pencil size={16}/> {t.edit || (language === 'al' ? 'Ndrysho' : 'Edit')}
                   </button>
-                  <button onClick={() => handleDelete(apt.id)} className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded font-bold hover:bg-red-100"><Trash2 size={16}/></button>
+                  <button onClick={() => handleDelete(apt.id)} className="btn btn-danger btn-sm"><Trash2 size={16}/></button>
                 </div>
               </div>
             )

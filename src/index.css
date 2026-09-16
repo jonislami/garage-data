@@ -1,57 +1,219 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-body {
-  background-color: #f3f4f6;
-  color: #1f2937;
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  body {
+    @apply bg-gray-100 text-gray-800 font-sans text-[14px];
+    font-feature-settings: 'cv11', 'ss01';
+  }
+  h1, h2, h3, h4 {
+    @apply text-gray-900 tracking-tight;
+  }
+  /* Tabular numbers everywhere money is shown */
+  .font-mono, td, .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+  :focus-visible {
+    outline: 2px solid theme('colors.blue.500');
+    outline-offset: 1px;
+  }
+  input, select, textarea {
+    @apply text-gray-900;
+  }
+  input[type='search']::-webkit-search-cancel-button,
+  input[type='search']::-webkit-search-decoration {
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  ::placeholder {
+    @apply text-gray-400;
+  }
 }
 
-/* --- PRINTING & SCROLLBAR FIXES --- */
+@layer components {
+  /* ---------- Layout ---------- */
+  .page {
+    @apply p-4 md:p-6 lg:p-8 max-w-7xl mx-auto w-full;
+  }
+  .page-header {
+    @apply flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6 pb-5 border-b border-gray-200;
+  }
+  .page-title {
+    @apply text-xl md:text-2xl font-semibold text-gray-900;
+  }
+  .page-subtitle {
+    @apply text-sm text-gray-500 mt-1;
+  }
+  .section-label {
+    @apply text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-2;
+  }
 
+  /* ---------- Surfaces ---------- */
+  .card {
+    @apply bg-white border border-gray-200 rounded-lg;
+  }
+  .card-header {
+    @apply px-4 py-3 border-b border-gray-200 flex items-center justify-between gap-3;
+  }
+  .card-title {
+    @apply text-sm font-semibold text-gray-900;
+  }
+
+  /* ---------- Buttons (square-ish, never pill) ---------- */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 h-9 px-3.5 text-sm font-medium rounded-md border
+      transition-colors duration-150 whitespace-nowrap select-none
+      disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-sm {
+    @apply h-8 px-2.5 text-[13px];
+  }
+  .btn-lg {
+    @apply h-10 px-4;
+  }
+  .btn-primary {
+    @apply bg-blue-600 border-blue-600 text-white hover:bg-blue-700 hover:border-blue-700;
+  }
+  .btn-secondary {
+    @apply bg-white border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-gray-400;
+  }
+  .btn-ghost {
+    @apply bg-transparent border-transparent text-gray-600 hover:bg-gray-100 hover:text-gray-900;
+  }
+  .btn-danger {
+    @apply bg-white border-gray-300 text-red-600 hover:bg-red-50 hover:border-red-300;
+  }
+  .btn-success {
+    @apply bg-emerald-600 border-emerald-600 text-white hover:bg-emerald-700 hover:border-emerald-700;
+  }
+  .btn-icon {
+    @apply inline-flex items-center justify-center h-8 w-8 rounded-md border border-transparent text-gray-500
+      hover:bg-gray-100 hover:text-gray-900 transition-colors;
+  }
+  .btn-icon-danger {
+    @apply btn-icon hover:bg-red-50 hover:text-red-600;
+  }
+
+  /* ---------- Forms ---------- */
+  .label {
+    @apply block text-xs font-medium text-gray-600 mb-1.5;
+  }
+  .input {
+    @apply w-full h-9 px-3 text-sm bg-white border border-gray-300 rounded-md outline-none
+      transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15;
+  }
+  textarea.input {
+    @apply h-auto py-2;
+  }
+  .input-icon {
+    @apply absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none;
+  }
+
+  /* ---------- Tables ---------- */
+  /* Horizontal-scroll wrapper for wide tables. Always contains its table so a
+     wide min-width never spills past the card / viewport (any screen size). */
+  .table-scroll {
+    @apply w-full max-w-full overflow-x-auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .table {
+    @apply w-full text-left text-sm;
+  }
+  .table thead th {
+    @apply px-4 py-2.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wider bg-gray-50 border-b border-gray-200 whitespace-nowrap;
+  }
+  .table tbody td {
+    @apply px-4 py-3 border-b border-gray-100 align-middle;
+  }
+  .table tbody tr:last-child td {
+    @apply border-b-0;
+  }
+  .table tbody tr {
+    @apply hover:bg-gray-50/70;
+  }
+
+  /* ---------- Badges (small rectangles, not pills) ---------- */
+  .badge {
+    @apply inline-flex items-center gap-1 px-1.5 py-0.5 text-[11px] font-medium rounded border whitespace-nowrap;
+  }
+  .badge-gray { @apply bg-gray-50 text-gray-700 border-gray-200; }
+  .badge-blue { @apply bg-blue-50 text-blue-700 border-blue-200; }
+  .badge-green { @apply bg-emerald-50 text-emerald-700 border-emerald-200; }
+  .badge-amber { @apply bg-amber-50 text-amber-800 border-amber-200; }
+  .badge-red { @apply bg-red-50 text-red-700 border-red-200; }
+
+  .plate {
+    @apply inline-flex items-center px-1.5 py-0.5 font-code text-[12px] font-semibold tracking-wide uppercase
+      bg-white text-gray-900 border border-gray-400 rounded-sm;
+  }
+
+  /* ---------- Stat tiles ---------- */
+  .stat {
+    @apply card p-4;
+  }
+  .stat-label {
+    @apply text-xs font-medium text-gray-500 flex items-center gap-1.5;
+  }
+  .stat-value {
+    @apply mt-1.5 text-2xl font-semibold text-gray-900 font-mono tracking-tight;
+  }
+
+  .empty-state {
+    @apply py-12 px-6 text-center text-sm text-gray-500;
+  }
+
+  .skeleton {
+    @apply bg-gray-200/70 rounded animate-pulse;
+  }
+}
+
+/* --- PRINTING --- */
 @media print {
-  /* This prevents the app from trapping the invoice in a small box, removing print sliders */
   html, body, #root, main, div {
     height: auto !important;
     overflow: visible !important;
   }
+  body { background: #fff; }
 }
 
-/* This hides the ugly gray slider/scrollbar everywhere, but you can still scroll normally! */
-::-webkit-scrollbar {
-  width: 0px !important;
-  background: transparent !important;
+/* Thin, unobtrusive scrollbars (instead of hiding them completely) */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #cdd3db transparent;
 }
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #cdd3db; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #98a2b0; }
 
-/* --- MOBILE RESPONSIVE CHEAT CODE --- */
+/* Fade-in used by forms */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+.animate-fade-in { animation: fade-in 160ms ease-out; }
+
+/* --- MOBILE --- */
 @media (max-width: 768px) {
-  /* 1. Shrink all big paddings to save screen space */
-  .p-8 {
-    padding: 1rem !important;
-  }
-  
-  /* 2. Shrink huge titles */
-  .text-3xl {
-    font-size: 1.5rem !important;
-    line-height: 2rem !important;
-  }
-
-  /* 3. Make ALL tables swipeable sideways so they don't break the screen */
-  table {
+  /* Legacy tables that aren't wrapped in .table-scroll */
+  table:not(.table) {
     display: block !important;
     overflow-x: auto !important;
     white-space: nowrap !important;
     width: 100% !important;
-    -webkit-overflow-scrolling: touch; /* Smooth scrolling on iPhones */
+    -webkit-overflow-scrolling: touch;
   }
-  
-  /* 4. Force all multi-column forms to stack vertically */
-  form .grid {
+  form .grid:not(.keep-cols) {
     grid-template-columns: 1fr !important;
   }
-  
-  /* 5. Stack big metric cards on the Dashboard */
-  .grid-cols-2, .grid-cols-3, .grid-cols-4 {
+  .grid-cols-3:not(.keep-cols), .grid-cols-4:not(.keep-cols) {
     grid-template-columns: 1fr !important;
   }
 }

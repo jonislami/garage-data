@@ -1,240 +1,255 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { Plus, Trash2, Pencil, Search, User, Phone, Mail, MapPin, X } from 'lucide-react';
-import { useSync } from '../contexts/SyncContext'; 
-import { useLanguage } from '../LanguageContext'; // SHTUAR: Importo Context-in e gjuhës
-import { translations } from '../translations'; // SHTUAR: Importo fjalorin
+import { Plus, Trash2, Pencil, Users, X, Check, Phone, Mail } from 'lucide-react';
+import { useSync } from '../contexts/SyncContext';
+import { useLanguage } from '../LanguageContext';
+import { translations } from '../translations';
+import { PageHeader, SearchInput, EmptyState, TableSkeleton, useToast } from '../components/ui';
+import { matches } from '../lib/format';
+import { vehicleName } from '../lib/vehicle';
+
+const EMPTY = { full_name: '', phone: '', email: '', address: '' };
 
 export default function Clients() {
-  const { isOnline, addToQueue } = useSync(); 
-  
-  // SHTUAR: Lexo gjuhën dhe fjalorin
+  const { isOnline, addToQueue } = useSync();
   const { language } = useLanguage();
   const t = translations[language] || translations.en;
+  const al = language === 'al';
+  const toast = useToast();
 
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  
-  const [searchTerm, setSearchTerm] = useState('');
-  const [formData, setFormData] = useState({ full_name: '', phone: '', email: '', address: '' });
+  const [search, setSearch] = useState('');
+  const [formData, setFormData] = useState(EMPTY);
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { fetchData(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+
+  function loadCache() {
+    try {
+      const c = JSON.parse(localStorage.getItem('sonic_clients_cache') || 'null');
+      if (c) setClients(c);
+    } catch { /* ignore */ }
+  }
 
   async function fetchData() {
     setLoading(true);
-
-    if (!isOnline) {
-      const cachedClients = localStorage.getItem('sonic_clients_cache');
-      if (cachedClients) {
-        setClients(JSON.parse(cachedClients));
-      }
-      setLoading(false);
-      return; 
-    }
-
+    if (!isOnline) { loadCache(); setLoading(false); return; }
     try {
       const { data: { user } } = await supabase.auth.getUser();
       const { data: profile } = await supabase.from('profiles').select('workshop_id').eq('id', user.id).single();
       if (profile) {
-        const { data } = await supabase.from('clients').select('*').eq('workshop_id', profile.workshop_id).order('created_at', { ascending: false });
-        setClients(data || []);
-        
-        localStorage.setItem('sonic_clients_cache', JSON.stringify(data || []));
+        let res = await supabase.from('clients').select('*, cars(id, plate, make, model)')
+          .eq('workshop_id', profile.workshop_id).order('full_name');
+        if (res.error) {
+          // Fallback if the clients→cars relation isn't exposed
+          res = await supabase.from('clients').select('*').eq('workshop_id', profile.workshop_id).order('full_name');
+        }
+        setClients(res.data || []);
+        localStorage.setItem('sonic_clients_cache', JSON.stringify(res.data || []));
       }
     } catch (error) {
-      console.error("Fetch error (fallback to cache):", error);
-      const cachedClients = localStorage.getItem('sonic_clients_cache');
-      if (cachedClients) setClients(JSON.parse(cachedClients));
+      console.error('Fetch error (fallback to cache):', error);
+      loadCache();
     }
     setLoading(false);
   }
 
   function handleCancel() {
-    setShowForm(false); setEditingId(null);
-    setFormData({ full_name: '', phone: '', email: '', address: '' });
+    setShowForm(false); setEditingId(null); setFormData(EMPTY);
   }
 
   function handleEdit(client) {
-    setFormData({ full_name: client.full_name, phone: client.phone || '', email: client.email || '', address: client.address || '' });
+    setFormData({ full_name: client.full_name || '', phone: client.phone || '', email: client.email || '', address: client.address || '' });
     setEditingId(client.id); setShowForm(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  async function handleDelete(id) {
-    const confirmMsg = language === 'al' 
-      ? 'Jeni i sigurt që dëshironi ta fshini këtë klient?' 
-      : 'Are you sure you want to delete this client?';
-
-    if (window.confirm(confirmMsg)) {
-      if (!isOnline) {
-        setClients(prev => prev.filter(c => c.id !== id));
-        
-        const existingCache = JSON.parse(localStorage.getItem('sonic_clients_cache') || '[]');
-        const updatedCache = existingCache.filter(c => c.id !== id);
-        localStorage.setItem('sonic_clients_cache', JSON.stringify(updatedCache));
-
-        if (!id.toString().startsWith('temp-')) {
-          addToQueue('clients', 'DELETE', { id });
-          alert(language === 'al' ? 'Offline: Klienti u fshi lokalisht. Do të sinkronizohet kur të kthehet interneti.' : 'Offline: Client deleted locally. Will sync to cloud when internet returns.');
-        }
-        return; 
+  async function handleDelete(client) {
+    const msg = al ? `Fshi klientin “${client.full_name}”?` : `Delete client “${client.full_name}”?`;
+    if (!window.confirm(msg)) return;
+    const id = client.id;
+    if (!isOnline) {
+      setClients(prev => prev.filter(c => c.id !== id));
+      const cache = JSON.parse(localStorage.getItem('sonic_clients_cache') || '[]');
+      localStorage.setItem('sonic_clients_cache', JSON.stringify(cache.filter(c => c.id !== id)));
+      if (!String(id).startsWith('temp-')) {
+        addToQueue('clients', 'DELETE', { id });
+        toast.info(al ? 'Offline: u fshi lokalisht, do të sinkronizohet.' : 'Offline: deleted locally, will sync.');
       }
-
-      try {
-        const { error } = await supabase.from('clients').delete().eq('id', id);
-        if (error) throw error;
-        fetchData();
-      } catch (error) {
-        alert((language === 'al' ? 'Gabim gjatë fshirjes: ' : 'Error deleting: ') + error.message);
-      }
+      return;
     }
+    const { error } = await supabase.from('clients').delete().eq('id', id);
+    if (error) {
+      return toast.error(/foreign key/i.test(error.message)
+        ? (al ? 'Ky klient ka vetura ose fatura. Fshini ato së pari.' : 'This client still has vehicles or invoices. Remove those first.')
+        : (al ? 'Gabim gjatë fshirjes: ' : 'Error deleting: ') + error.message);
+    }
+    toast.success(al ? 'Klienti u fshi.' : 'Client deleted.');
+    fetchData();
   }
 
   async function handleSubmit(e) {
     e.preventDefault();
+    setSaving(true);
     try {
       let workshopId = localStorage.getItem('sonic_workshop_id');
-
       if (!workshopId && isOnline) {
         const { data: { user } } = await supabase.auth.getUser();
         const { data: profile } = await supabase.from('profiles').select('workshop_id').eq('id', user.id).single();
-        if (profile?.workshop_id) {
-          workshopId = profile.workshop_id;
-          localStorage.setItem('sonic_workshop_id', workshopId); 
-        }
+        if (profile?.workshop_id) { workshopId = profile.workshop_id; localStorage.setItem('sonic_workshop_id', workshopId); }
       }
+      if (!workshopId) throw new Error(al ? 'Nuk u gjet ID e ofiçinës. Lidhuni me internet.' : 'Workshop ID not found. Please connect to the internet.');
 
-      if (!workshopId) throw new Error(language === 'al' ? "Nuk u gjet ID e Ofiçinës. Lidhu pak me Wi-Fi." : "Could not find Workshop ID. Please connect to Wi-Fi briefly.");
-
-      const payload = { ...formData, workshop_id: workshopId };
+      const payload = {
+        full_name: formData.full_name.trim(),
+        phone: formData.phone.trim(),
+        email: formData.email.trim(),
+        address: formData.address.trim(),
+        workshop_id: workshopId,
+      };
 
       if (!isOnline) {
-        const existingCache = JSON.parse(localStorage.getItem('sonic_clients_cache') || '[]');
-        
+        const cache = JSON.parse(localStorage.getItem('sonic_clients_cache') || '[]');
         if (editingId) {
           addToQueue('clients', 'UPDATE', { id: editingId, ...payload });
-          const updatedClients = existingCache.map(c => c.id === editingId ? { ...c, ...payload } : c);
-          setClients(updatedClients);
-          localStorage.setItem('sonic_clients_cache', JSON.stringify(updatedClients));
-          alert(language === 'al' ? 'Offline: Klienti u përditësua lokalisht. Do të sinkronizohet kur të kthehet interneti.' : 'Offline: Client updated locally. Will sync when internet returns.');
+          const updated = cache.map(c => c.id === editingId ? { ...c, ...payload } : c);
+          setClients(updated);
+          localStorage.setItem('sonic_clients_cache', JSON.stringify(updated));
         } else {
           addToQueue('clients', 'INSERT', payload);
-          const tempClient = { id: 'temp-' + Date.now(), ...payload, created_at: new Date().toISOString() };
-          setClients([tempClient, ...existingCache]);
-          localStorage.setItem('sonic_clients_cache', JSON.stringify([tempClient, ...existingCache]));
-          alert(language === 'al' ? 'Offline: Klienti i ri u ruajt lokalisht. Do të sinkronizohet kur të kthehet interneti.' : 'Offline: New client saved locally. Will sync when internet returns.');
+          const temp = { id: 'temp-' + Date.now(), ...payload, created_at: new Date().toISOString() };
+          setClients([temp, ...cache]);
+          localStorage.setItem('sonic_clients_cache', JSON.stringify([temp, ...cache]));
         }
-
+        toast.info(al ? 'Offline: u ruajt lokalisht, do të sinkronizohet.' : 'Offline: saved locally, will sync.');
         handleCancel();
-        return; 
+        return;
       }
 
-      if (editingId) {
-        const { error } = await supabase.from('clients').update(payload).eq('id', editingId);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.from('clients').insert([payload]);
-        if (error) throw error;
-      }
-      handleCancel(); fetchData();
-    } catch (error) { alert((language === 'al' ? 'Gabim gjatë ruajtjes: ' : 'Save Error: ') + error.message); }
+      const { error } = editingId
+        ? await supabase.from('clients').update(payload).eq('id', editingId)
+        : await supabase.from('clients').insert([payload]);
+      if (error) throw error;
+      toast.success(editingId ? (al ? 'Klienti u përditësua.' : 'Client updated.') : (al ? 'Klienti u shtua.' : 'Client added.'));
+      handleCancel();
+      fetchData();
+    } catch (error) {
+      toast.error((al ? 'Gabim gjatë ruajtjes: ' : 'Save error: ') + error.message);
+    } finally {
+      setSaving(false);
+    }
   }
 
-  const filteredClients = clients.filter(c => {
-    const term = searchTerm.toLowerCase();
-    return (
-      (c.full_name?.toLowerCase() || '').includes(term) ||
-      (c.phone || '').includes(term) ||
-      (c.email?.toLowerCase() || '').includes(term)
-    );
-  });
+  const filtered = useMemo(() => clients.filter(c => matches(
+    search, c.full_name, c.phone, c.email, c.address,
+    ...(c.cars || []).map(car => car.plate),
+  )), [clients, search]);
+
+  const set = key => e => setFormData({ ...formData, [key]: e.target.value });
 
   return (
-    <div className="p-4 md:p-8">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 md:mb-8 gap-4">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-800">{t.page_title_clients || (language === 'al' ? 'Klientët' : 'Clients')}</h1>
-          <p className="text-sm md:text-base text-gray-500 mt-1">{t.page_desc_clients || (language === 'al' ? 'Menaxho databazën e klientëve tuaj' : 'Manage your customer database')}</p>
-        </div>
+    <div className="page">
+      <PageHeader title={t.page_title_clients} subtitle={t.page_desc_clients}>
         {!showForm && (
-          <button onClick={() => setShowForm(true)} className="w-full md:w-auto bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg flex justify-center items-center gap-2 font-bold shadow-md">
-            <Plus size={20} /> {t.add_client || (language === 'al' ? 'Shto Klient' : 'Add Client')}
-          </button>
+          <button onClick={() => setShowForm(true)} className="btn btn-primary"><Plus size={16} /> {t.add_client}</button>
         )}
-      </div>
-
-      <div className="mb-6 relative max-w-xl">
-        <Search className="absolute left-3 top-3.5 text-gray-400" size={20} />
-        <input 
-          type="text" 
-          placeholder={language === 'al' ? 'Kërko me emër, telefon ose email...' : 'Search by name, phone, or email...'} 
-          className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 shadow-sm text-gray-700 font-medium"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-        />
-      </div>
+      </PageHeader>
 
       {showForm && (
-        <div className="bg-white p-6 rounded-xl shadow-xl border border-gray-200 mb-8 max-w-2xl animate-fade-in">
-          <div className="flex justify-between items-center mb-6 border-b pb-4">
-            <h2 className="text-xl font-black text-gray-800 flex items-center gap-2">
-              <User size={24} className="text-blue-600"/> 
-              {editingId ? (language === 'al' ? 'Ndrysho Klientin' : 'Edit Client') : (language === 'al' ? 'Klient i Ri' : 'New Client')}
-            </h2>
-            <button type="button" onClick={handleCancel} className="text-gray-400 hover:text-red-500 p-2"><X size={20}/></button>
+        <form onSubmit={handleSubmit} className="card mb-5 max-w-3xl animate-fade-in">
+          <div className="card-header">
+            <h2 className="card-title">{editingId ? (al ? 'Ndrysho klientin' : 'Edit client') : (al ? 'Klient i ri' : 'New client')}</h2>
+            <button type="button" onClick={handleCancel} className="btn-icon" aria-label="Close"><X size={16} /></button>
           </div>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase mb-1">{language === 'al' ? 'Emri i Plotë' : 'Full Name'}</label>
-              <input required className="w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500" value={formData.full_name} onChange={e => setFormData({...formData, full_name: e.target.value})} />
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">{language === 'al' ? 'Telefoni' : 'Phone'}</label>
-                <input className="w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Email</label>
-                <input type="email" className="w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
-              </div>
+          <div className="p-4 md:p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="sm:col-span-2">
+              <label className="label">{al ? 'Emri i plotë' : 'Full name'} *</label>
+              <input required className="input" value={formData.full_name} onChange={set('full_name')} />
             </div>
             <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase mb-1">{language === 'al' ? 'Adresa' : 'Address'}</label>
-              <input className="w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500" value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} />
+              <label className="label">{al ? 'Telefoni' : 'Phone'}</label>
+              <input type="tel" className="input" placeholder="+383 4x xxx xxx" value={formData.phone} onChange={set('phone')} />
             </div>
-            <div className="flex justify-end pt-4">
-              <button type="submit" className="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-700 shadow-md">
-                {language === 'al' ? 'Ruaj Klientin' : 'Save Client'}
-              </button>
+            <div>
+              <label className="label">Email</label>
+              <input type="email" className="input" value={formData.email} onChange={set('email')} />
             </div>
-          </form>
-        </div>
+            <div className="sm:col-span-2">
+              <label className="label">{al ? 'Adresa' : 'Address'}</label>
+              <input className="input" value={formData.address} onChange={set('address')} />
+            </div>
+          </div>
+          <div className="px-4 md:px-5 py-3 border-t border-gray-200 bg-gray-50 flex justify-end gap-2">
+            <button type="button" onClick={handleCancel} className="btn btn-secondary">{al ? 'Anulo' : 'Cancel'}</button>
+            <button type="submit" disabled={saving} className="btn btn-primary"><Check size={16} /> {al ? 'Ruaj klientin' : 'Save client'}</button>
+          </div>
+        </form>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {loading ? <p>{language === 'al' ? 'Duke ngarkuar...' : 'Loading...'}</p> : filteredClients.map(client => (
-          <div key={client.id} className="bg-white p-5 rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
-            <h3 className="font-black text-lg text-gray-800 mb-3">{client.full_name}</h3>
-            <div className="space-y-2 mb-4">
-              <p className="text-sm text-gray-600 flex items-center gap-2"><Phone size={16} className="text-gray-400"/> {client.phone || '-'}</p>
-              <p className="text-sm text-gray-600 flex items-center gap-2"><Mail size={16} className="text-gray-400"/> {client.email || '-'}</p>
-              <p className="text-sm text-gray-600 flex items-center gap-2"><MapPin size={16} className="text-gray-400"/> {client.address || '-'}</p>
-            </div>
-            <div className="flex gap-2 pt-4 border-t border-gray-100">
-               <button onClick={() => handleEdit(client)} className="flex-1 text-sm text-blue-600 bg-blue-50 py-2 rounded font-bold hover:bg-blue-100 flex justify-center items-center gap-1">
-                 <Pencil size={16}/> {t.edit || (language === 'al' ? 'Ndrysho' : 'Edit')}
-               </button>
-               <button onClick={() => handleDelete(client.id)} className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded font-bold hover:bg-red-100"><Trash2 size={16}/></button>
-            </div>
-          </div>
-        ))}
-        {!loading && filteredClients.length === 0 && (
-          <div className="col-span-full p-8 text-center text-gray-500 italic bg-white rounded-xl border border-dashed">
-            {language === 'al' ? 'Nuk u gjet asnjë klient.' : 'No clients found.'}
+      <SearchInput
+        className="mb-3 md:max-w-md"
+        value={search}
+        onChange={setSearch}
+        placeholder={al ? 'Kërko me emër, telefon, email ose targa…' : 'Search by name, phone, email or plate…'}
+      />
+
+      <div className="card overflow-hidden">
+        {loading ? <TableSkeleton rows={6} cols={4} /> : filtered.length === 0 ? (
+          <EmptyState
+            icon={Users}
+            title={al ? 'Asnjë klient nuk u gjet' : 'No clients found'}
+            description={search ? (al ? `Asgjë nuk përputhet me “${search}”.` : `Nothing matches “${search}”.`) : (al ? 'Shtoni klientin e parë.' : 'Add your first client.')}
+          />
+        ) : (
+          <div className="table-scroll">
+            <table className="table min-w-[680px]">
+              <thead>
+                <tr>
+                  <th>{al ? 'Emri' : 'Name'}</th>
+                  <th>{al ? 'Kontakti' : 'Contact'}</th>
+                  <th>{al ? 'Adresa' : 'Address'}</th>
+                  <th>{al ? 'Veturat' : 'Vehicles'}</th>
+                  <th className="w-20"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map(c => (
+                  <tr key={c.id}>
+                    <td className="font-medium text-gray-900">{c.full_name}</td>
+                    <td>
+                      <div className="space-y-0.5 text-[13px]">
+                        {c.phone ? <a href={`tel:${c.phone}`} className="flex items-center gap-1.5 text-gray-700 hover:text-blue-700"><Phone size={12} className="text-gray-400" />{c.phone}</a> : null}
+                        {c.email ? <a href={`mailto:${c.email}`} className="flex items-center gap-1.5 text-gray-500 hover:text-blue-700"><Mail size={12} className="text-gray-400" />{c.email}</a> : null}
+                        {!c.phone && !c.email && <span className="text-gray-300">—</span>}
+                      </div>
+                    </td>
+                    <td className="text-gray-600">{c.address || <span className="text-gray-300">—</span>}</td>
+                    <td>
+                      <div className="flex flex-wrap gap-1">
+                        {(c.cars || []).length === 0
+                          ? <span className="text-gray-300">—</span>
+                          : c.cars.map(car => <span key={car.id} className="plate" title={vehicleName(car.make, car.model)}>{car.plate}</span>)}
+                      </div>
+                    </td>
+                    <td>
+                      <div className="flex justify-end gap-0.5">
+                        <button onClick={() => handleEdit(c)} className="btn-icon" title={t.edit}><Pencil size={15} /></button>
+                        <button onClick={() => handleDelete(c)} className="btn-icon-danger" title={al ? 'Fshi' : 'Delete'}><Trash2 size={15} /></button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </div>
+      {!loading && clients.length > 0 && (
+        <p className="mt-2 text-xs text-gray-500">{al ? `${filtered.length} nga ${clients.length} klientë` : `Showing ${filtered.length} of ${clients.length} clients`}</p>
+      )}
     </div>
-  )
+  );
 }

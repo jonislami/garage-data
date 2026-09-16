@@ -128,21 +128,21 @@ export default function SuperAdmin() {
       <div className="bg-gray-900 text-white p-6 rounded-xl shadow-lg mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div className="flex items-center gap-4">
           <div className="bg-red-500 p-3 rounded-xl"><ShieldAlert size={32} /></div>
-          <div><h1 className="text-2xl font-black uppercase tracking-widest">Super Admin</h1><p className="text-sm text-gray-400 font-medium">SaaS Management Platform</p></div>
+          <div><h1 className="text-2xl font-semibold uppercase tracking-widest">Super Admin</h1><p className="text-sm text-gray-400 font-medium">SaaS Management Platform</p></div>
         </div>
         
         <div className="flex gap-4 sm:gap-8 bg-gray-800 p-4 rounded-xl border border-gray-700 w-full md:w-auto overflow-x-auto">
-           <div><p className="text-xs text-gray-400 font-bold uppercase flex items-center gap-1"><Building size={12}/> Garages</p><p className="text-2xl font-black">{workshops.length}</p></div>
-           <div><p className="text-xs text-gray-400 font-bold uppercase flex items-center gap-1"><Users size={12}/> Users</p><p className="text-2xl font-black">{profiles.length}</p></div>
-           <div><p className="text-xs text-gray-400 font-bold uppercase flex items-center gap-1"><Car size={12}/> Total Cars</p><p className="text-2xl font-black text-blue-400">{metrics.totalCars}</p></div>
-           <div><p className="text-xs text-gray-400 font-bold uppercase flex items-center gap-1"><FileText size={12}/> Invoices</p><p className="text-2xl font-black text-green-400">{metrics.totalInvoices}</p></div>
+           <div><p className="text-xs text-gray-400 font-bold uppercase flex items-center gap-1"><Building size={12}/> Garages</p><p className="text-2xl font-semibold">{workshops.length}</p></div>
+           <div><p className="text-xs text-gray-400 font-bold uppercase flex items-center gap-1"><Users size={12}/> Users</p><p className="text-2xl font-semibold">{profiles.length}</p></div>
+           <div><p className="text-xs text-gray-400 font-bold uppercase flex items-center gap-1"><Car size={12}/> Total Cars</p><p className="text-2xl font-semibold text-blue-400">{metrics.totalCars}</p></div>
+           <div><p className="text-xs text-gray-400 font-bold uppercase flex items-center gap-1"><FileText size={12}/> Invoices</p><p className="text-2xl font-semibold text-green-400">{metrics.totalInvoices}</p></div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-1 space-y-8">
           <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-            <h2 className="text-lg font-black text-gray-800 flex items-center gap-2 mb-4"><Plus className="text-blue-600" /> 1. Create New Garage</h2>
+            <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2 mb-4"><Plus className="text-blue-600" /> 1. Create New Garage</h2>
             <form onSubmit={handleCreateWorkshop} className="space-y-4">
               <div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Business Name</label><input required className="w-full p-3 border rounded-lg outline-none focus:ring-2" value={newWorkshopName} onChange={e => setNewWorkshopName(e.target.value)} placeholder="e.g. Ferizaj Auto" /></div>
               <div>
@@ -151,21 +151,21 @@ export default function SuperAdmin() {
                   <option value="€">EUR (€)</option><option value="$">USD ($)</option>
                 </select>
               </div>
-              <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg shadow-md transition-colors">Create Database Instance</button>
+              <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-colors">Create Database Instance</button>
             </form>
           </div>
         </div>
 
         <div className="lg:col-span-2 space-y-8">
           <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-            <h2 className="text-lg font-black text-gray-800 flex items-center gap-2 mb-4"><Activity className="text-blue-600" /> Platform Usage by Garage</h2>
+            <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2 mb-4"><Activity className="text-blue-600" /> Platform Usage by Garage</h2>
             <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
               {workshops.map(shop => (
                 <div key={shop.id} className={`flex flex-col xl:flex-row xl:justify-between xl:items-center p-4 border rounded-xl gap-4 ${shop.is_active === false ? 'bg-red-50 border-red-200' : 'bg-gray-50 border-gray-100'}`}>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <p className="font-bold text-gray-900 text-lg truncate">{shop.name}</p>
-                      {shop.is_active === false && <span className="text-[10px] bg-red-600 text-white font-black px-2 py-0.5 rounded uppercase tracking-widest">Suspended</span>}
+                      {shop.is_active === false && <span className="text-[10px] bg-red-600 text-white font-semibold px-2 py-0.5 rounded uppercase tracking-widest">Suspended</span>}
                     </div>
                     <div className="flex gap-4 mt-2">
                       <span className="text-xs font-bold text-gray-500 bg-white px-2 py-1 rounded border flex items-center gap-1"><Car size={12} className="text-blue-500"/> {shop.carCount} Cars</span>
@@ -196,7 +196,7 @@ export default function SuperAdmin() {
           </div>
 
           <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-            <h2 className="text-lg font-black text-gray-800 flex items-center gap-2 mb-6"><Users className="text-blue-600" /> 2. Link Users to Garages</h2>
+            <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2 mb-6"><Users className="text-blue-600" /> 2. Link Users to Garages</h2>
             <div className="overflow-x-auto">
               <table className="w-full text-left min-w-[500px]">
                 <thead className="bg-gray-50 border-b">
@@ -205,7 +205,7 @@ export default function SuperAdmin() {
                 <tbody className="divide-y divide-gray-100">
                   {profiles.map(profile => (
                     <tr key={profile.id} className="hover:bg-gray-50">
-                      <td className="p-3 font-medium text-gray-800">{profile.email || 'No email saved'} {profile.email === SUPER_ADMIN_EMAIL && <span className="ml-2 text-[10px] bg-red-100 text-red-700 font-black px-2 py-0.5 rounded uppercase">Admin</span>}</td>
+                      <td className="p-3 font-medium text-gray-800">{profile.email || 'No email saved'} {profile.email === SUPER_ADMIN_EMAIL && <span className="ml-2 text-[10px] bg-red-100 text-red-700 font-semibold px-2 py-0.5 rounded uppercase">Admin</span>}</td>
                       <td className="p-3">
                         <select className={`w-full p-2 border rounded outline-none text-sm font-semibold bg-white ${!profile.workshop_id ? 'border-red-300 text-red-600' : 'border-gray-300'}`} value={profile.workshop_id || ''} onChange={(e) => handleAssignUser(profile.id, e.target.value)}>
                           <option value="">-- NO ACCESS (LOCKED OUT) --</option>
