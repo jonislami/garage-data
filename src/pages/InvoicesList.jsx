@@ -9,6 +9,12 @@ import { PageHeader, SearchInput, EmptyState, TableSkeleton, StatusBadge, useToa
 import { formatMoney, formatDate, invoiceNumber, matches, rowDate } from '../lib/format';
 import { vehicleName } from '../lib/vehicle';
 
+const TAB_KEY = 'sonic_invoices_tab';
+
+function readTab() {
+  try { return localStorage.getItem(TAB_KEY) === 'regular' ? 'regular' : 'normal'; } catch { return 'normal'; }
+}
+
 export default function InvoicesList() {
   const navigate = useNavigate();
   const { isOnline, addToQueue } = useSync();
@@ -21,6 +27,12 @@ export default function InvoicesList() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [period, setPeriod] = useState('all');
+  const [tab, setTab] = useState(readTab);
+
+  function changeTab(next) {
+    setTab(next);
+    try { localStorage.setItem(TAB_KEY, next); } catch { /* ignore */ }
+  }
   const [currency, setCurrency] = useState('€');
 
   const money = v => formatMoney(v, currency);
@@ -61,6 +73,11 @@ export default function InvoicesList() {
   }
 
   async function handleDelete(inv) {
+    if (inv.regular_number) {
+      return toast.error(al
+        ? `Fatura e rregullt ${inv.regular_number} nuk mund të fshihet.`
+        : `Regular invoice ${inv.regular_number} cannot be deleted.`);
+    }
     const msg = al
       ? `Fshi faturën ${invoiceNumber(inv)}? Ky veprim nuk mund të zhbëhet.`
       : `Delete invoice ${invoiceNumber(inv)}? This cannot be undone.`;
@@ -85,7 +102,8 @@ export default function InvoicesList() {
 
   const filtered = useMemo(() => {
     const now = new Date();
-    return invoices.filter(inv => {
+    const list = invoices.filter(inv => {
+      if (!!inv.is_regular_invoice !== (tab === 'regular')) return false;
       if (period !== 'all') {
         const d = rowDate(inv, 'service_date') || now;
         if (period === 'month' && !(d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear())) return false;
@@ -95,13 +113,36 @@ export default function InvoicesList() {
         inv.cars?.clients?.full_name, inv.cars?.plate, inv.cars?.make, inv.cars?.model, vehicleName(inv.cars?.make, inv.cars?.model),
         invoiceNumber(inv), inv.description, inv.cars?.clients?.phone);
     });
-  }, [invoices, search, period]);
+    // Regular invoices in their number order (newest month and number first)
+    if (tab === 'regular') {
+      list.sort((a, b) => (b.regular_period || '9999').localeCompare(a.regular_period || '9999')
+        || (b.regular_seq ?? Infinity) - (a.regular_seq ?? Infinity));
+    }
+    return list;
+  }, [invoices, search, period, tab]);
+
+  const counts = useMemo(() => {
+    const regular = invoices.filter(i => i.is_regular_invoice).length;
+    return { regular, normal: invoices.length - regular };
+  }, [invoices]);
 
   const sum = filtered.reduce((a, i) => a + (Number(i.cost) || 0), 0);
 
   return (
     <div className="page">
       <PageHeader title={t.page_title_invoices} subtitle={t.page_desc_invoices} />
+
+      <div className="mb-3 flex gap-1 border-b border-gray-200" role="tablist">
+        {[
+          ['normal', al ? 'Fatura normale' : 'Normal invoices'],
+          ['regular', al ? 'Fatura të rregullta' : 'Regular invoices'],
+        ].map(([key, label]) => (
+          <button key={key} role="tab" aria-selected={tab === key} onClick={() => changeTab(key)}
+            className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${tab === key ? 'border-blue-600 text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+            {label} <span className="ml-1 text-xs text-gray-400">{counts[key]}</span>
+          </button>
+        ))}
+      </div>
 
       <div className="flex flex-col md:flex-row gap-2 mb-3">
         <SearchInput
@@ -122,14 +163,17 @@ export default function InvoicesList() {
           <EmptyState
             icon={FileText}
             title={al ? 'Asnjë faturë nuk u gjet' : 'No invoices found'}
-            description={search ? (al ? `Asgjë nuk përputhet me “${search}”.` : `Nothing matches “${search}”.`) : (al ? 'Faturat krijohen nga faqja e punëve.' : 'Invoices are created from the Jobs page.')}
+            description={search ? (al ? `Asgjë nuk përputhet me “${search}”.` : `Nothing matches “${search}”.`)
+              : tab === 'regular'
+                ? (al ? 'Hapni një faturë dhe klikoni “Faturë e rregullt”. Faturat për klientë biznes bëhen të rregullta automatikisht.' : 'Open an invoice and click “Regular invoice”. Invoices for business clients become regular automatically.')
+                : (al ? 'Faturat krijohen nga faqja e punëve.' : 'Invoices are created from the Jobs page.')}
           />
         ) : (
           <div className="table-scroll">
             <table className="table min-w-[720px]">
               <thead>
                 <tr>
-                  <th>{al ? 'Nr.' : 'No.'}</th>
+                  <th>{tab === 'regular' ? (al ? 'Fatura #' : 'Invoice #') : (al ? 'Nr.' : 'No.')}</th>
                   <th>{t.date}</th>
                   <th>{al ? 'Klienti' : 'Client'}</th>
                   <th>{al ? 'Vetura' : 'Vehicle'}</th>
@@ -141,7 +185,11 @@ export default function InvoicesList() {
               <tbody>
                 {filtered.map(inv => (
                   <tr key={inv.id} className="cursor-pointer" onClick={() => navigate(`/invoices/${inv.id}`)}>
-                    <td className="font-code text-[13px] text-gray-600">{invoiceNumber(inv)}</td>
+                    <td className={`font-code text-[13px] ${tab === 'regular' ? 'font-medium text-gray-900' : 'text-gray-600'}`}>
+                      {tab === 'regular' && !inv.regular_number
+                        ? <span className="font-sans text-xs text-gray-400">{al ? 'pas sinkronizimit' : 'after sync'}</span>
+                        : invoiceNumber(inv)}
+                    </td>
                     <td className="whitespace-nowrap text-gray-600">{formatDate(inv.service_date || inv.created_at)}</td>
                     <td className="text-gray-900">{inv.cars?.clients?.full_name || <span className="text-gray-400">{al ? 'Klient i panjohur' : 'Unknown client'}</span>}</td>
                     <td>
@@ -157,9 +205,11 @@ export default function InvoicesList() {
                         <button onClick={() => navigate(`/invoices/${inv.id}`)} className="btn btn-secondary btn-sm">
                           <Eye size={14} /> {t.view_pdf}
                         </button>
-                        <button onClick={() => handleDelete(inv)} className="btn-icon-danger" title={al ? 'Fshi' : 'Delete'}>
-                          <Trash2 size={15} />
-                        </button>
+                        {!inv.regular_number && (
+                          <button onClick={() => handleDelete(inv)} className="btn-icon-danger" title={al ? 'Fshi' : 'Delete'}>
+                            <Trash2 size={15} />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -171,6 +221,7 @@ export default function InvoicesList() {
       </div>
       {!loading && filtered.length > 0 && (
         <p className="mt-2 text-xs text-gray-500">
+          {tab === 'regular' ? (al ? 'Të rregullta: ' : 'Regular: ') : (al ? 'Normale: ' : 'Normal: ')}
           {al ? `${filtered.length} fatura · Totali ${money(sum)}` : `${filtered.length} invoice${filtered.length === 1 ? '' : 's'} · Total ${money(sum)}`}
         </p>
       )}

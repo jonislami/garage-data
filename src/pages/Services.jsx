@@ -191,6 +191,12 @@ export default function Services() {
   }
 
   async function handleDeleteService(id) {
+    const numbered = services.find(s => s.id === id)?.regular_number;
+    if (numbered) {
+      return toast.error(al
+        ? `Fatura e rregullt ${numbered} nuk mund të fshihet.`
+        : `Regular invoice ${numbered} cannot be deleted.`);
+    }
     const msg = al
       ? 'Jeni i sigurt që dëshironi ta fshini këtë punë? Ky veprim nuk mund të zhbëhet.'
       : 'Delete this job? This cannot be undone.';
