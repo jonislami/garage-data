@@ -36,7 +36,9 @@ export function rowDate(row, field) {
   return /^\d{4}-\d{2}-\d{2}$/.test(v) ? new Date(`${v}T00:00:00`) : new Date(v);
 }
 
+// Regular (fiscal) invoices have their own monthly sequence, e.g. 01/092026
 export function invoiceNumber(row) {
+  if (row?.regular_number) return row.regular_number;
   if (!row?.id) return '—';
   return `#${String(row.id).split('-')[0].toUpperCase()}`;
 }

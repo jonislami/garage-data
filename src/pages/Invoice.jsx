@@ -12,7 +12,7 @@ import { vehicleName } from '../lib/vehicle';
 export default function Invoice() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { isOnline } = useSync(); 
+  const { isOnline, addToQueue } = useSync();
 
   // SHTUAR: Lexo gjuhën dhe fjalorin
   const { language } = useLanguage();
@@ -29,8 +29,7 @@ export default function Invoice() {
 
   function applyInvoice(data) {
     setInvoice(data);
-    // null = not chosen yet: business clients get a regular invoice by default
-    setRegular(data.is_regular_invoice ?? !!data.cars?.clients?.is_business);
+    setRegular(!!data.is_regular_invoice);
     setPaymentMethod(data.payment_method || '');
   }
 
@@ -116,22 +115,40 @@ export default function Invoice() {
 
   // Saves an invoice field (regular flag / payment method) and keeps the offline cache in sync
   async function saveField(field, value) {
-    const updated = { ...invoice, [field]: value };
+    let updated = { ...invoice, [field]: value };
+    if (!isOnline) {
+      addToQueue('services', 'UPDATE', { id, [field]: value });
+    } else {
+      // The database assigns the regular number, so read it back
+      const { data, error } = await supabase.from('services').update({ [field]: value }).eq('id', id)
+        .select('is_regular_invoice, regular_number, regular_seq, regular_period').single();
+      if (error) {
+        toast.error((al ? 'Gabim gjatë ruajtjes: ' : 'Error saving: ') + error.message);
+        return false;
+      }
+      updated = { ...updated, ...data };
+    }
     setInvoice(updated);
     localStorage.setItem(`sonic_invoice_${id}`, JSON.stringify(updated));
-    if (!isOnline) return;
-    const { error } = await supabase.from('services').update({ [field]: value }).eq('id', id);
-    if (error) toast.error((al ? 'Gabim gjatë ruajtjes: ' : 'Error saving: ') + error.message);
+    return true;
   }
 
-  function toggleRegular() {
-    setRegular(!regular);
-    saveField('is_regular_invoice', !regular);
+  async function toggleRegular() {
+    if (regular && invoice.regular_number) {
+      return toast.error(al
+        ? `Fatura e rregullt ${invoice.regular_number} ka numër dhe nuk mund të kthehet në faturë normale.`
+        : `Regular invoice ${invoice.regular_number} has a number and cannot be turned back into a normal invoice.`);
+    }
+    if (!regular && !window.confirm(al
+      ? 'Kjo faturë do të marrë numrin e radhës së faturave të rregullta. Pasi të marrë numër, nuk mund të kthehet në normale dhe nuk mund të fshihet. Vazhdo?'
+      : 'This invoice will get the next regular invoice number. Once numbered it cannot be turned back into a normal invoice or deleted. Continue?')) return;
+    const next = !regular;
+    if (await saveField('is_regular_invoice', next)) setRegular(next);
   }
 
-  function changePayment(e) {
-    setPaymentMethod(e.target.value);
-    saveField('payment_method', e.target.value || null);
+  async function changePayment(e) {
+    const value = e.target.value;
+    if (await saveField('payment_method', value || null)) setPaymentMethod(value);
   }
 
   const PAYMENT_LABELS = {
@@ -198,8 +215,12 @@ export default function Invoice() {
             <p className="text-2xl font-semibold tracking-tight text-gray-900">{al ? 'Faturë' : 'Invoice'}</p>
             {regular && <p className="text-xs uppercase tracking-wide text-gray-500">{al ? 'Faturë e rregullt' : 'Regular invoice'}</p>}
             <dl className="mt-2 grid grid-cols-[auto_auto] sm:justify-end gap-x-4 gap-y-0.5 text-sm">
-              <dt className="text-gray-500">{al ? 'Numri' : 'Number'}</dt>
-              <dd className="font-code text-gray-900">{invoiceNumber(invoice)}</dd>
+              <dt className="text-gray-500">{regular ? (al ? 'Fatura #' : 'Invoice #') : (al ? 'Numri' : 'Number')}</dt>
+              <dd className="font-code text-gray-900">
+                {regular && !invoice.regular_number
+                  ? <span className="font-sans text-gray-500">{al ? 'Numri jepet pas sinkronizimit' : 'Number assigned after sync'}</span>
+                  : invoiceNumber(invoice)}
+              </dd>
               <dt className="text-gray-500">{t.date}</dt>
               <dd className="text-gray-900">{formatDate(invoice.service_date || invoice.created_at)}</dd>
             </dl>
