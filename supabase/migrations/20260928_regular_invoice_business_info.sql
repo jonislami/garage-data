@@ -25,3 +25,7 @@ alter table public.clients
 alter table public.services
   add column if not exists is_regular_invoice boolean,  -- null = follow the client (business -> regular)
   add column if not exists payment_method     text;
+
+-- In case an earlier draft created it as NOT NULL DEFAULT false
+alter table public.services alter column is_regular_invoice drop not null;
+alter table public.services alter column is_regular_invoice drop default;
