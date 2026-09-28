@@ -27,7 +27,8 @@ import Reports from './pages/Reports';
 import LandingPage from './pages/LandingPage';
 
 // --- VENDOS EMAIL-IN TËND KËTU (Super Admin) ---
-const SUPER_ADMIN_EMAIL = 'trilon1234@gmail.com'; 
+// Also set in supabase/migrations/20260928_security_hardening.sql (is_super_admin)
+const SUPER_ADMIN_EMAIL = 'trilon1234@gmail.com';
 
 function MainApp() {
   const { language } = useLanguage();
