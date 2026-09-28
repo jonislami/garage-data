@@ -12,6 +12,11 @@ import {
   getLastBackupAt, readBackupFile, restoreBackup, exportCSV, RESTORE_GROUPS,
 } from '../lib/backup';
 
+const FISCAL_FIELDS = [
+  'business_name', 'unique_number', 'fiscal_number', 'vat_number', 'email', 'website',
+  'bank_name', 'bank_account_name', 'bank_account',
+];
+
 const TABLE_LABELS = {
   en: {
     clients: 'Clients', cars: 'Vehicles', inventory: 'Stock items', services: 'Invoices / jobs',
@@ -299,6 +304,7 @@ export default function Settings() {
   const [workshopId, setWorkshopId] = useState(null);
   const [formData, setFormData] = useState({
     name: '', address: '', phone: '', country: '', currency: '€', logo_url: '', vat_rate: 0,
+    ...Object.fromEntries(FISCAL_FIELDS.map(k => [k, ''])),
   });
   const [logoFile, setLogoFile] = useState(null);
   const [logoPreview, setLogoPreview] = useState(null);
@@ -324,6 +330,7 @@ export default function Settings() {
           name: workshop.name || '', address: workshop.address || '', phone: workshop.phone || '',
           country: workshop.country || '', currency: workshop.currency || '€', logo_url: workshop.logo_url || '',
           vat_rate: workshop.vat_rate || 0,
+          ...Object.fromEntries(FISCAL_FIELDS.map(k => [k, workshop[k] || ''])),
         });
       }
     } catch (error) { console.error(error); } finally { setLoading(false); }
@@ -344,6 +351,7 @@ export default function Settings() {
       const { error } = await supabase.from('workshops').update({
         name: formData.name, address: formData.address, phone: formData.phone,
         country: formData.country, currency: formData.currency, logo_url: finalLogoUrl, vat_rate: formData.vat_rate,
+        ...Object.fromEntries(FISCAL_FIELDS.map(k => [k, formData[k].trim()])),
       }).eq('id', workshopId);
       if (error) throw error;
       setFormData(f => ({ ...f, logo_url: finalLogoUrl }));
@@ -412,6 +420,46 @@ export default function Settings() {
                     <option value="8">8% — {al ? 'normë e reduktuar' : 'reduced rate'}</option>
                     <option value="18">18% — {al ? 'normë standarde (Kosovë)' : 'standard rate (Kosovo)'}</option>
                   </select>
+                </div>
+              </div>
+
+              <p className="section-label mt-6">{al ? 'Për faturë të rregullt' : 'For regular (fiscal) invoices'}</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="md:col-span-2">
+                  <label className="label">{al ? 'Emri i biznesit (i regjistruar)' : 'Registered business name'}</label>
+                  <input className="input" placeholder={al ? 'p.sh. Alton Islami BI' : 'e.g. Alton Islami BI'} value={formData.business_name} onChange={set('business_name')} />
+                </div>
+                <div>
+                  <label className="label">{al ? 'Nr. unik' : 'Unique number (Nr. unik)'}</label>
+                  <input className="input font-code" value={formData.unique_number} onChange={set('unique_number')} />
+                </div>
+                <div>
+                  <label className="label">{al ? 'Nr. fiskal' : 'Fiscal number'}</label>
+                  <input className="input font-code" value={formData.fiscal_number} onChange={set('fiscal_number')} />
+                </div>
+                <div>
+                  <label className="label">{al ? 'Nr. TVSH' : 'VAT number'}</label>
+                  <input className="input font-code" value={formData.vat_number} onChange={set('vat_number')} />
+                </div>
+                <div>
+                  <label className="label">Email</label>
+                  <input type="email" className="input" value={formData.email} onChange={set('email')} />
+                </div>
+                <div>
+                  <label className="label">{al ? 'Uebfaqja' : 'Website'}</label>
+                  <input className="input" placeholder="www…" value={formData.website} onChange={set('website')} />
+                </div>
+                <div>
+                  <label className="label">{al ? 'Emri i bankës' : 'Bank name'}</label>
+                  <input className="input" value={formData.bank_name} onChange={set('bank_name')} />
+                </div>
+                <div>
+                  <label className="label">{al ? 'Emri i llogarisë' : 'Account name'}</label>
+                  <input className="input" value={formData.bank_account_name} onChange={set('bank_account_name')} />
+                </div>
+                <div>
+                  <label className="label">{al ? 'Nr. i llogarisë' : 'Account number'}</label>
+                  <input className="input font-code" value={formData.bank_account} onChange={set('bank_account')} />
                 </div>
               </div>
               <div className="mt-5 flex justify-end">

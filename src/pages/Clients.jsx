@@ -8,7 +8,10 @@ import { PageHeader, SearchInput, EmptyState, TableSkeleton, useToast } from '..
 import { matches } from '../lib/format';
 import { vehicleName } from '../lib/vehicle';
 
-const EMPTY = { full_name: '', phone: '', email: '', address: '' };
+const EMPTY = {
+  full_name: '', phone: '', email: '', address: '',
+  is_business: false, fiscal_number: '', unique_number: '', vat_number: '', country: '',
+};
 
 export default function Clients() {
   const { isOnline, addToQueue } = useSync();
@@ -62,7 +65,11 @@ export default function Clients() {
   }
 
   function handleEdit(client) {
-    setFormData({ full_name: client.full_name || '', phone: client.phone || '', email: client.email || '', address: client.address || '' });
+    setFormData({
+      full_name: client.full_name || '', phone: client.phone || '', email: client.email || '', address: client.address || '',
+      is_business: !!client.is_business, fiscal_number: client.fiscal_number || '', unique_number: client.unique_number || '',
+      vat_number: client.vat_number || '', country: client.country || '',
+    });
     setEditingId(client.id); setShowForm(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
@@ -108,6 +115,11 @@ export default function Clients() {
         phone: formData.phone.trim(),
         email: formData.email.trim(),
         address: formData.address.trim(),
+        is_business: formData.is_business,
+        fiscal_number: formData.is_business ? formData.fiscal_number.trim() : '',
+        unique_number: formData.is_business ? formData.unique_number.trim() : '',
+        vat_number: formData.is_business ? formData.vat_number.trim() : '',
+        country: formData.country.trim(),
         workshop_id: workshopId,
       };
 
@@ -144,7 +156,7 @@ export default function Clients() {
   }
 
   const filtered = useMemo(() => clients.filter(c => matches(
-    search, c.full_name, c.phone, c.email, c.address,
+    search, c.full_name, c.phone, c.email, c.address, c.fiscal_number, c.unique_number,
     ...(c.cars || []).map(car => car.plate),
   )), [clients, search]);
 
@@ -165,8 +177,13 @@ export default function Clients() {
             <button type="button" onClick={handleCancel} className="btn-icon" aria-label="Close"><X size={16} /></button>
           </div>
           <div className="p-4 md:p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <label className="sm:col-span-2 flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none">
+              <input type="checkbox" className="h-4 w-4" checked={formData.is_business}
+                onChange={e => setFormData({ ...formData, is_business: e.target.checked })} />
+              {al ? 'Klient biznes (për faturë të rregullt)' : 'Business client (for regular invoices)'}
+            </label>
             <div className="sm:col-span-2">
-              <label className="label">{al ? 'Emri i plotë' : 'Full name'} *</label>
+              <label className="label">{formData.is_business ? (al ? 'Emri i biznesit' : 'Business name') : (al ? 'Emri i plotë' : 'Full name')} *</label>
               <input required className="input" value={formData.full_name} onChange={set('full_name')} />
             </div>
             <div>
@@ -181,6 +198,26 @@ export default function Clients() {
               <label className="label">{al ? 'Adresa' : 'Address'}</label>
               <input className="input" value={formData.address} onChange={set('address')} />
             </div>
+            <div>
+              <label className="label">{al ? 'Shteti' : 'Country'}</label>
+              <input className="input" placeholder={al ? 'Kosovë' : 'Kosovo'} value={formData.country} onChange={set('country')} />
+            </div>
+            {formData.is_business && (
+              <>
+                <div>
+                  <label className="label">{al ? 'Nr. fiskal' : 'Fiscal number'}</label>
+                  <input className="input font-code" value={formData.fiscal_number} onChange={set('fiscal_number')} />
+                </div>
+                <div>
+                  <label className="label">{al ? 'Nr. unik' : 'Unique number (Nr. unik)'}</label>
+                  <input className="input font-code" value={formData.unique_number} onChange={set('unique_number')} />
+                </div>
+                <div>
+                  <label className="label">{al ? 'Nr. TVSH' : 'VAT number'}</label>
+                  <input className="input font-code" value={formData.vat_number} onChange={set('vat_number')} />
+                </div>
+              </>
+            )}
           </div>
           <div className="px-4 md:px-5 py-3 border-t border-gray-200 bg-gray-50 flex justify-end gap-2">
             <button type="button" onClick={handleCancel} className="btn btn-secondary">{al ? 'Anulo' : 'Cancel'}</button>
@@ -218,7 +255,14 @@ export default function Clients() {
               <tbody>
                 {filtered.map(c => (
                   <tr key={c.id}>
-                    <td className="font-medium text-gray-900">{c.full_name}</td>
+                    <td>
+                      <p className="font-medium text-gray-900">{c.full_name}</p>
+                      {c.is_business && (
+                        <p className="text-xs text-gray-500">
+                          {al ? 'Biznes' : 'Business'}{c.fiscal_number ? ` · ${al ? 'Nr. fiskal' : 'Fiscal no.'} ${c.fiscal_number}` : ''}
+                        </p>
+                      )}
+                    </td>
                     <td>
                       <div className="space-y-0.5 text-[13px]">
                         {c.phone ? <a href={`tel:${c.phone}`} className="flex items-center gap-1.5 text-gray-700 hover:text-blue-700"><Phone size={12} className="text-gray-400" />{c.phone}</a> : null}
