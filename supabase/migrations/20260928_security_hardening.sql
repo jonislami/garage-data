@@ -127,3 +127,9 @@ alter policy "Users can upload workshop logos" on storage.objects to authenticat
 -- Missing column used by the Inspections page (template save/load was failing)
 -- ---------------------------------------------------------------------------
 alter table public.workshops add column if not exists inspection_template jsonb;
+
+-- Helpers are only needed by signed-in users (inside RLS policies)
+revoke execute on function public.is_super_admin() from public, anon;
+revoke execute on function public.my_workshop_id() from public, anon;
+grant execute on function public.is_super_admin() to authenticated;
+grant execute on function public.my_workshop_id() to authenticated;
