@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { Printer, ArrowLeft, MessageCircle } from 'lucide-react';
+import { Printer, ArrowLeft, MessageCircle, FileCheck2 } from 'lucide-react';
 import { useSync } from '../contexts/SyncContext'; 
 import { useLanguage } from '../LanguageContext'; // SHTUAR: Importo Context-in e gjuhës
 import { translations } from '../translations';
@@ -24,6 +24,15 @@ export default function Invoice() {
   const [loading, setLoading] = useState(true);
   const [currency, setCurrency] = useState('€');
   const [vatRate, setVatRate] = useState(0);
+  const [regular, setRegular] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState('');
+
+  function applyInvoice(data) {
+    setInvoice(data);
+    // null = not chosen yet: business clients get a regular invoice by default
+    setRegular(data.is_regular_invoice ?? !!data.cars?.clients?.is_business);
+    setPaymentMethod(data.payment_method || '');
+  }
 
   useEffect(() => {
     async function fetchInvoice() {
@@ -33,7 +42,7 @@ export default function Invoice() {
         const cachedInvoice = localStorage.getItem(`sonic_invoice_${id}`);
         if (cachedInvoice) {
           const parsedData = JSON.parse(cachedInvoice);
-          setInvoice(parsedData);
+          applyInvoice(parsedData);
           setCurrency(parsedData.workshops?.currency || '€');
           setVatRate(Number(parsedData.workshops?.vat_rate || 0));
         } else {
@@ -54,11 +63,11 @@ export default function Invoice() {
 
           const { data, error } = await supabase
             .from('services')
-            .select(`*, workshops ( name, address, phone, logo_url, currency, vat_rate ), cars ( make, model, year, plate, clients ( full_name, phone, email ) ), service_items ( description, category, price, quantity, unit )`)
+            .select(`*, workshops ( * ), cars ( make, model, year, plate, clients ( * ) ), service_items ( description, category, price, quantity, unit )`)
             .eq('id', id).single();
 
           if (!error && data) {
-            setInvoice(data);
+            applyInvoice(data);
             localStorage.setItem(`sonic_invoice_${id}`, JSON.stringify(data));
           }
         }
@@ -105,6 +114,44 @@ export default function Invoice() {
     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`, '_blank');
   }
 
+  // Saves an invoice field (regular flag / payment method) and keeps the offline cache in sync
+  async function saveField(field, value) {
+    const updated = { ...invoice, [field]: value };
+    setInvoice(updated);
+    localStorage.setItem(`sonic_invoice_${id}`, JSON.stringify(updated));
+    if (!isOnline) return;
+    const { error } = await supabase.from('services').update({ [field]: value }).eq('id', id);
+    if (error) toast.error((al ? 'Gabim gjatë ruajtjes: ' : 'Error saving: ') + error.message);
+  }
+
+  function toggleRegular() {
+    setRegular(!regular);
+    saveField('is_regular_invoice', !regular);
+  }
+
+  function changePayment(e) {
+    setPaymentMethod(e.target.value);
+    saveField('payment_method', e.target.value || null);
+  }
+
+  const PAYMENT_LABELS = {
+    cash: al ? 'Cash' : 'Cash',
+    bank: al ? 'Transfer bankar' : 'Bank transfer',
+    card: al ? 'Kartelë' : 'Card',
+  };
+  const paymentLabel = PAYMENT_LABELS[paymentMethod] || paymentMethod;
+
+  const buyerRows = [
+    ...(client?.is_business ? [
+      [al ? 'Nr. fiskal' : 'Fiscal no.', client?.fiscal_number, true],
+      [al ? 'Nr. unik' : 'Unique no.', client?.unique_number, true],
+      [al ? 'Nr. TVSH' : 'VAT no.', client?.vat_number, true],
+    ] : []),
+    [al ? 'Adresa' : 'Address', client?.address],
+    [al ? 'Shteti' : 'Country', client?.country],
+    [al ? 'Telefoni' : 'Phone', client?.phone],
+  ];
+
   const unit = u => (al && (u === 'pcs' || !u) ? 'copë' : al && u === 'hr' ? 'orë' : u || 'pcs');
 
   return (
@@ -113,7 +160,15 @@ export default function Invoice() {
         <button onClick={() => navigate(-1)} className="btn btn-ghost -ml-2 self-start">
           <ArrowLeft size={16} /> {al ? 'Kthehu' : 'Back'}
         </button>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <button onClick={toggleRegular} className={`btn ${regular ? 'btn-primary' : 'btn-secondary'}`} aria-pressed={regular}
+            title={al ? 'Faturë e rregullt me numrin fiskal dhe të dhënat e biznesit' : 'Regular invoice with fiscal number and business details'}>
+            <FileCheck2 size={16} /> {al ? 'Faturë e rregullt' : 'Regular invoice'}
+          </button>
+          <select className="input !w-auto" value={paymentMethod} onChange={changePayment} aria-label={al ? 'Metoda e pagesës' : 'Payment method'}>
+            <option value="">{al ? 'Metoda e pagesës…' : 'Payment method…'}</option>
+            {Object.entries(PAYMENT_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          </select>
           <button onClick={sendWhatsApp} className="btn btn-secondary"><MessageCircle size={16} /> WhatsApp</button>
           <button onClick={() => window.print()} className="btn btn-primary"><Printer size={16} /> {al ? 'Printo / PDF' : 'Print / PDF'}</button>
         </div>
@@ -127,10 +182,21 @@ export default function Invoice() {
               <p className="text-base font-semibold text-gray-900">{shop?.name}</p>
               {shop?.address && <p className="text-sm text-gray-500">{shop.address}</p>}
               {shop?.phone && <p className="text-sm text-gray-500">{shop.phone}</p>}
+              {regular && (
+                <>
+                  {shop?.website && <p className="text-sm text-gray-500">{shop.website}</p>}
+                  {shop?.email && <p className="text-sm text-gray-500">{shop.email}</p>}
+                  {shop?.business_name && <p className="text-sm text-gray-500">{al ? 'Emri i biznesit' : 'Business name'}: {shop.business_name}</p>}
+                  {shop?.unique_number && <p className="text-sm text-gray-500">{al ? 'Nr. unik' : 'Unique no.'}: <span className="font-code">{shop.unique_number}</span></p>}
+                  {shop?.fiscal_number && <p className="text-sm text-gray-500">{al ? 'Nr. fiskal' : 'Fiscal no.'}: <span className="font-code">{shop.fiscal_number}</span></p>}
+                  {shop?.vat_number && <p className="text-sm text-gray-500">{al ? 'Nr. TVSH' : 'VAT no.'}: <span className="font-code">{shop.vat_number}</span></p>}
+                </>
+              )}
             </div>
           </div>
           <div className="sm:text-right">
             <p className="text-2xl font-semibold tracking-tight text-gray-900">{al ? 'Faturë' : 'Invoice'}</p>
+            {regular && <p className="text-xs uppercase tracking-wide text-gray-500">{al ? 'Faturë e rregullt' : 'Regular invoice'}</p>}
             <dl className="mt-2 grid grid-cols-[auto_auto] sm:justify-end gap-x-4 gap-y-0.5 text-sm">
               <dt className="text-gray-500">{al ? 'Numri' : 'Number'}</dt>
               <dd className="font-code text-gray-900">{invoiceNumber(invoice)}</dd>
@@ -142,10 +208,23 @@ export default function Invoice() {
 
         <div className="grid grid-cols-2 gap-6 py-6 keep-cols">
           <div>
-            <p className="section-label">{al ? 'Faturuar për' : 'Billed to'}</p>
+            <p className="section-label">{regular ? (al ? 'Blerësi' : 'Buyer') : (al ? 'Faturuar për' : 'Billed to')}</p>
             <p className="font-medium text-gray-900">{client?.full_name || '—'}</p>
-            {client?.phone && <p className="text-sm text-gray-600">{client.phone}</p>}
-            {client?.email && <p className="text-sm text-gray-600">{client.email}</p>}
+            {regular ? (
+              <dl className="mt-1 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-sm">
+                {buyerRows.map(([label, value, code]) => (
+                  <div key={label} className="contents">
+                    <dt className="text-gray-500">{label}</dt>
+                    <dd className={`text-gray-900 ${code ? 'font-code' : ''}`}>{value || '—'}</dd>
+                  </div>
+                ))}
+              </dl>
+            ) : (
+              <>
+                {client?.phone && <p className="text-sm text-gray-600">{client.phone}</p>}
+                {client?.email && <p className="text-sm text-gray-600">{client.email}</p>}
+              </>
+            )}
           </div>
           <div>
             <p className="section-label">{al ? 'Vetura' : 'Vehicle'}</p>
@@ -158,6 +237,7 @@ export default function Invoice() {
           <thead>
             <tr>
               <th className="!bg-white">{t.description}</th>
+              {regular && <th className="!bg-white">{al ? 'Njësia' : 'Unit'}</th>}
               <th className="!bg-white text-right">{al ? 'Sasia' : 'Qty'}</th>
               <th className="!bg-white text-right">{al ? 'Çmimi' : 'Unit price'}</th>
               <th className="!bg-white text-right">{t.total}</th>
@@ -169,13 +249,14 @@ export default function Invoice() {
               return (
                 <tr key={idx} className="hover:!bg-transparent">
                   <td className="text-gray-900">{item.description}</td>
-                  <td className="text-right font-mono whitespace-nowrap">{qty} <span className="text-xs text-gray-400">{unit(item.unit)}</span></td>
+                  {regular && <td className="text-gray-600 whitespace-nowrap">{unit(item.unit)}</td>}
+                  <td className="text-right font-mono whitespace-nowrap">{qty}{!regular && <> <span className="text-xs text-gray-400">{unit(item.unit)}</span></>}</td>
                   <td className="text-right font-mono text-gray-600 whitespace-nowrap">{money(item.price)}</td>
                   <td className="text-right font-mono whitespace-nowrap">{money(qty * Number(item.price))}</td>
                 </tr>
               );
             })}
-            {items.length === 0 && <tr><td colSpan="4" className="text-center text-gray-400">—</td></tr>}
+            {items.length === 0 && <tr><td colSpan={regular ? 5 : 4} className="text-center text-gray-400">—</td></tr>}
           </tbody>
         </table>
 
@@ -183,6 +264,17 @@ export default function Invoice() {
           <div className="flex-1 text-sm text-gray-600 max-w-md">
             <p className="section-label">{al ? 'Shënime' : 'Notes'}</p>
             <p className="whitespace-pre-wrap">{invoice.invoice_notes || (al ? 'Faleminderit që zgjodhët shërbimin tonë!' : 'Thank you for your business!')}</p>
+            {paymentLabel && (
+              <p className="mt-4"><span className="text-gray-500">{al ? 'Metoda e pagesës' : 'Payment method'}:</span> <span className="text-gray-900">{paymentLabel}</span></p>
+            )}
+            {regular && (shop?.bank_name || shop?.bank_account) && (
+              <div className="mt-4">
+                <p className="section-label">{al ? 'Detajet e llogarisë' : 'Bank details'}</p>
+                {shop.bank_name && <p>{al ? 'Emri i bankës' : 'Bank'}: <span className="text-gray-900">{shop.bank_name}</span></p>}
+                {shop.bank_account_name && <p>{al ? 'Emri i llogarisë' : 'Account name'}: <span className="text-gray-900">{shop.bank_account_name}</span></p>}
+                {shop.bank_account && <p>{al ? 'Llogaria' : 'Account'}: <span className="font-code text-gray-900">{shop.bank_account}</span></p>}
+              </div>
+            )}
           </div>
 
           <dl className="w-full md:w-72 text-sm">
