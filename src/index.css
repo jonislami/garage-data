@@ -175,7 +175,16 @@
 }
 
 /* --- PRINTING --- */
+/* Zero page margin hides the browser's own header/footer (date, title, URL, page no.);
+   the white space is put back as padding on the body instead. */
+@page { size: A4; margin: 0; }
+
 @media print {
+  body {
+    padding: 14mm 16mm;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+  }
   html, body, #root, main, div {
     height: auto !important;
     overflow: visible !important;
