@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, Loader2, Trash2, Hash } from 'lucide-react';
+import { X, Loader2, Trash2, Hash, Undo2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useToast } from './ui';
 
@@ -14,6 +14,32 @@ function Modal({ title, onClose, children }) {
         {children}
       </div>
     </div>
+  );
+}
+
+// Leave a gap in the month's sequence, or move later invoices down by one
+function GapChoice({ al, closeGap, setCloseGap }) {
+  return (
+    <fieldset className="space-y-2">
+      <label className="flex items-start gap-2 cursor-pointer">
+        <input type="radio" name="gap" className="mt-0.5" checked={!closeGap} onChange={() => setCloseGap(false)} />
+        <span>
+          <span className="font-medium text-gray-900">{al ? 'Mos i prek faturat e tjera' : 'Leave other invoices as they are'}</span>
+          <span className="block text-xs text-gray-500">{al ? 'Numri mbetet i lirë (boshllëk në radhë).' : 'The number stays free (a gap in the sequence).'}</span>
+        </span>
+      </label>
+      <label className="flex items-start gap-2 cursor-pointer">
+        <input type="radio" name="gap" className="mt-0.5" checked={closeGap} onChange={() => setCloseGap(true)} />
+        <span>
+          <span className="font-medium text-gray-900">{al ? 'Mbyll boshllëkun' : 'Close the gap'}</span>
+          <span className="block text-xs text-gray-500">
+            {al
+              ? 'Faturat e mëvonshme të këtij muaji zbresin një numër (p.sh. 05 → 04). Kujdes: faturat e printuara më parë do të kenë numër tjetër.'
+              : 'Later invoices of this month move down by one (e.g. 05 → 04). Careful: invoices already printed will then show a different number.'}
+          </span>
+        </span>
+      </label>
+    </fieldset>
   );
 }
 
@@ -108,26 +134,7 @@ export function DeleteRegularDialog({ invoice, al, isOnline, onClose, onDeleted 
               ? 'Kjo faturë e rregullt do të fshihet përgjithmonë bashkë me artikujt e saj.'
               : 'This regular invoice and its line items will be deleted permanently.'}
           </p>
-          <fieldset className="space-y-2">
-            <label className="flex items-start gap-2 cursor-pointer">
-              <input type="radio" name="gap" className="mt-0.5" checked={!closeGap} onChange={() => setCloseGap(false)} />
-              <span>
-                <span className="font-medium text-gray-900">{al ? 'Mos i prek faturat e tjera' : 'Leave other invoices as they are'}</span>
-                <span className="block text-xs text-gray-500">{al ? 'Numri mbetet i lirë (boshllëk në radhë).' : 'The number stays free (a gap in the sequence).'}</span>
-              </span>
-            </label>
-            <label className="flex items-start gap-2 cursor-pointer">
-              <input type="radio" name="gap" className="mt-0.5" checked={closeGap} onChange={() => setCloseGap(true)} />
-              <span>
-                <span className="font-medium text-gray-900">{al ? 'Mbyll boshllëkun' : 'Close the gap'}</span>
-                <span className="block text-xs text-gray-500">
-                  {al
-                    ? 'Faturat e mëvonshme të këtij muaji zbresin një numër (p.sh. 05 → 04). Kujdes: faturat e printuara më parë do të kenë numër tjetër.'
-                    : 'Later invoices of this month move down by one (e.g. 05 → 04). Careful: invoices already printed will then show a different number.'}
-                </span>
-              </span>
-            </label>
-          </fieldset>
+          <GapChoice al={al} closeGap={closeGap} setCloseGap={setCloseGap} />
           <div>
             <label className="label">{al ? `Shkruani ${word} për të konfirmuar` : `Type ${word} to confirm`}</label>
             <input className="input" value={confirmText} onChange={e => setConfirmText(e.target.value)} />
@@ -137,6 +144,47 @@ export function DeleteRegularDialog({ invoice, al, isOnline, onClose, onDeleted 
           <button type="button" onClick={onClose} className="btn btn-secondary">{al ? 'Anulo' : 'Cancel'}</button>
           <button type="submit" disabled={deleting || confirmText.trim().toUpperCase() !== word} className="btn btn-danger">
             {deleting ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />} {al ? 'Fshi faturën' : 'Delete invoice'}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+// Turn a numbered regular invoice back into a normal one
+export function ConvertToNormalDialog({ invoice, al, isOnline, onClose, onConverted }) {
+  const toast = useToast();
+  const [closeGap, setCloseGap] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  async function convert(e) {
+    e.preventDefault();
+    if (!isOnline) return toast.error(al ? 'Ky veprim kërkon internet.' : 'This requires internet.');
+    setSaving(true);
+    const { data: moved, error } = await supabase.rpc('unset_regular_invoice', { p_service_id: invoice.id, p_close_gap: closeGap });
+    setSaving(false);
+    if (error) return toast.error((al ? 'Gabim: ' : 'Error: ') + error.message);
+    toast.success(al
+      ? `Fatura ${invoice.regular_number} u kthye në faturë normale.${moved ? ` ${moved} fatura u rinumëruan.` : ''}`
+      : `Invoice ${invoice.regular_number} is now a normal invoice.${moved ? ` ${moved} invoice${moved === 1 ? ' was' : 's were'} renumbered.` : ''}`);
+    onConverted();
+  }
+
+  return (
+    <Modal title={al ? `Kthe ${invoice.regular_number} në faturë normale` : `Turn ${invoice.regular_number} into a normal invoice`} onClose={onClose}>
+      <form onSubmit={convert}>
+        <div className="p-4 md:p-5 space-y-4 text-sm">
+          <p className="text-gray-700">
+            {al
+              ? 'Fatura mbetet me të gjithë artikujt, por humb numrin e rregullt dhe kalon te faturat normale. Nëse e ktheni sërish në të rregullt, merr numrin e radhës.'
+              : 'The invoice keeps all its items but loses its regular number and moves to the normal invoices. If you make it regular again, it gets the next number.'}
+          </p>
+          <GapChoice al={al} closeGap={closeGap} setCloseGap={setCloseGap} />
+        </div>
+        <div className="px-4 md:px-5 py-3 border-t border-gray-200 bg-gray-50 flex justify-end gap-2">
+          <button type="button" onClick={onClose} className="btn btn-secondary">{al ? 'Anulo' : 'Cancel'}</button>
+          <button type="submit" disabled={saving} className="btn btn-primary">
+            {saving ? <Loader2 size={16} className="animate-spin" /> : <Undo2 size={16} />} {al ? 'Kthe në normale' : 'Make normal'}
           </button>
         </div>
       </form>
