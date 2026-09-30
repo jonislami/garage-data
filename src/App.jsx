@@ -23,6 +23,8 @@ import { SyncProvider } from './contexts/SyncContext';
 import { ToastProvider } from './components/ui';
 import { formatDate } from './lib/format';
 import Reports from './pages/Reports';
+import Maintenance from './pages/Maintenance';
+import VehicleQR from './pages/VehicleQR';
 
 import LandingPage from './pages/LandingPage';
 
@@ -218,6 +220,7 @@ function MainApp() {
             <Route path="/expenses" element={<Expenses />} />
             <Route path="/appointments" element={<Appointments />} />
             <Route path="/reports" element={<Reports />} />
+            <Route path="/maintenance" element={<Maintenance />} />
             
             <Route path="/admin" element={<SuperAdmin />} />
             <Route path="*" element={<Navigate to="/" replace />} />
@@ -235,7 +238,11 @@ export default function App() {
       <LanguageProvider>
         <ToastProvider>
           <SyncProvider>
-            <MainApp />
+            <Routes>
+              {/* Public page behind the permanent vehicle QR sticker (no login) */}
+              <Route path="/v/:token" element={<VehicleQR />} />
+              <Route path="/*" element={<MainApp />} />
+            </Routes>
           </SyncProvider>
         </ToastProvider>
       </LanguageProvider>

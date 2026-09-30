@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { Plus, Trash2, Pencil, Search, Car, X, Check, RefreshCw, Wand2 } from 'lucide-react';
+import { Plus, Trash2, Pencil, Search, Car, X, Check, RefreshCw, Wand2, QrCode } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { useSync } from '../contexts/SyncContext';
 import { useLanguage } from '../LanguageContext';
 import { translations } from '../translations';
@@ -326,7 +327,7 @@ export default function Cars() {
                   <th>{al ? 'Motori' : 'Engine'}</th>
                   <th>{al ? 'Pronari' : 'Owner'}</th>
                   <th>VIN</th>
-                  <th className="w-20"></th>
+                  <th className="w-28"></th>
                 </tr>
               </thead>
               <tbody>
@@ -343,6 +344,7 @@ export default function Cars() {
                     <td className="font-code text-xs text-gray-500">{car.vin || '—'}</td>
                     <td>
                       <div className="flex justify-end gap-0.5">
+                        <Link to={`/maintenance?car=${car.id}`} className="btn-icon" title={al ? 'Servisimi & QR' : 'Maintenance & QR'}><QrCode size={15} /></Link>
                         <button onClick={() => handleEdit(car)} className="btn-icon" title={t.edit}><Pencil size={15} /></button>
                         <button onClick={() => handleDelete(car)} className="btn-icon-danger" title={al ? 'Fshi' : 'Delete'}><Trash2 size={15} /></button>
                       </div>

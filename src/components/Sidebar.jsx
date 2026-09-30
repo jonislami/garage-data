@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import {
   LayoutDashboard, Users, Car, FileText, LogOut, Wrench, Package, Settings,
   ClipboardCheck, Menu, X, Languages, Receipt, ShieldAlert, CalendarDays,
-  Wifi, WifiOff, RefreshCw, BarChart3,
+  Wifi, WifiOff, RefreshCw, BarChart3, QrCode,
 } from 'lucide-react';
 import { useLanguage } from '../LanguageContext';
 import { useSync } from '../contexts/SyncContext';
@@ -46,6 +46,7 @@ export default function Sidebar() {
     { label: t('nav_workshop'), items: [
       { name: t('appointments'), icon: CalendarDays, path: '/appointments' },
       { name: t('services'), icon: Wrench, path: '/services' },
+      { name: t('maintenance'), icon: QrCode, path: '/maintenance' },
       { name: t('inspections'), icon: ClipboardCheck, path: '/inspections' },
       { name: t('inventory'), icon: Package, path: '/inventory' },
     ] },
