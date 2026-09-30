@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { Printer, ArrowLeft, MessageCircle, FileCheck2 } from 'lucide-react';
+import { Printer, ArrowLeft, MessageCircle, FileCheck2, Hash, Trash2 } from 'lucide-react';
+import { ChangeNumberDialog, DeleteRegularDialog } from '../components/RegularInvoiceDialogs';
 import { useSync } from '../contexts/SyncContext'; 
 import { useLanguage } from '../LanguageContext'; // SHTUAR: Importo Context-in e gjuhës
 import { translations } from '../translations';
@@ -26,6 +27,7 @@ export default function Invoice() {
   const [vatRate, setVatRate] = useState(0);
   const [regular, setRegular] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('');
+  const [dialog, setDialog] = useState(null); // 'number' | 'delete'
 
   function applyInvoice(data) {
     setInvoice(data);
@@ -173,6 +175,19 @@ export default function Invoice() {
 
   return (
     <div className="page max-w-4xl print:p-0 print:max-w-none">
+      {dialog === 'number' && (
+        <ChangeNumberDialog invoice={invoice} al={al} isOnline={isOnline} onClose={() => setDialog(null)}
+          onChanged={changes => {
+            const updated = { ...invoice, ...changes };
+            setInvoice(updated);
+            localStorage.setItem(`sonic_invoice_${id}`, JSON.stringify(updated));
+            setDialog(null);
+          }} />
+      )}
+      {dialog === 'delete' && (
+        <DeleteRegularDialog invoice={invoice} al={al} isOnline={isOnline} onClose={() => setDialog(null)}
+          onDeleted={() => { localStorage.removeItem(`sonic_invoice_${id}`); navigate('/invoices'); }} />
+      )}
       <div className="mb-4 flex flex-col sm:flex-row justify-between gap-2 print:hidden">
         <button onClick={() => navigate(-1)} className="btn btn-ghost -ml-2 self-start">
           <ArrowLeft size={16} /> {al ? 'Kthehu' : 'Back'}
@@ -186,6 +201,16 @@ export default function Invoice() {
             <option value="">{al ? 'Metoda e pagesës…' : 'Payment method…'}</option>
             {Object.entries(PAYMENT_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>
+          {invoice.regular_number && (
+            <>
+              <button onClick={() => setDialog('number')} className="btn btn-secondary" title={al ? 'Ndrysho numrin e faturës' : 'Change invoice number'}>
+                <Hash size={16} /> {al ? 'Ndrysho numrin' : 'Change number'}
+              </button>
+              <button onClick={() => setDialog('delete')} className="btn-icon-danger" title={al ? 'Fshi faturën' : 'Delete invoice'}>
+                <Trash2 size={16} />
+              </button>
+            </>
+          )}
           <button onClick={sendWhatsApp} className="btn btn-secondary"><MessageCircle size={16} /> WhatsApp</button>
           <button onClick={() => window.print()} className="btn btn-primary"><Printer size={16} /> {al ? 'Printo / PDF' : 'Print / PDF'}</button>
         </div>

@@ -8,6 +8,7 @@ import { translations } from '../translations';
 import { PageHeader, SearchInput, EmptyState, TableSkeleton, StatusBadge, useToast } from '../components/ui';
 import { formatMoney, formatDate, invoiceNumber, matches, rowDate } from '../lib/format';
 import { vehicleName } from '../lib/vehicle';
+import { DeleteRegularDialog } from '../components/RegularInvoiceDialogs';
 
 const TAB_KEY = 'sonic_invoices_tab';
 
@@ -28,6 +29,7 @@ export default function InvoicesList() {
   const [search, setSearch] = useState('');
   const [period, setPeriod] = useState('all');
   const [tab, setTab] = useState(readTab);
+  const [deleting, setDeleting] = useState(null);
 
   function changeTab(next) {
     setTab(next);
@@ -73,11 +75,7 @@ export default function InvoicesList() {
   }
 
   async function handleDelete(inv) {
-    if (inv.regular_number) {
-      return toast.error(al
-        ? `Fatura e rregullt ${inv.regular_number} nuk mund të fshihet.`
-        : `Regular invoice ${inv.regular_number} cannot be deleted.`);
-    }
+    if (inv.regular_number) return setDeleting(inv);
     const msg = al
       ? `Fshi faturën ${invoiceNumber(inv)}? Ky veprim nuk mund të zhbëhet.`
       : `Delete invoice ${invoiceNumber(inv)}? This cannot be undone.`;
@@ -131,6 +129,10 @@ export default function InvoicesList() {
   return (
     <div className="page">
       <PageHeader title={t.page_title_invoices} subtitle={t.page_desc_invoices} />
+      {deleting && (
+        <DeleteRegularDialog invoice={deleting} al={al} isOnline={isOnline} onClose={() => setDeleting(null)}
+          onDeleted={() => { setDeleting(null); fetchInvoices(); }} />
+      )}
 
       <div className="mb-3 flex gap-1 border-b border-gray-200" role="tablist">
         {[
@@ -205,11 +207,9 @@ export default function InvoicesList() {
                         <button onClick={() => navigate(`/invoices/${inv.id}`)} className="btn btn-secondary btn-sm">
                           <Eye size={14} /> {t.view_pdf}
                         </button>
-                        {!inv.regular_number && (
-                          <button onClick={() => handleDelete(inv)} className="btn-icon-danger" title={al ? 'Fshi' : 'Delete'}>
-                            <Trash2 size={15} />
-                          </button>
-                        )}
+                        <button onClick={() => handleDelete(inv)} className="btn-icon-danger" title={al ? 'Fshi' : 'Delete'}>
+                          <Trash2 size={15} />
+                        </button>
                       </div>
                     </td>
                   </tr>

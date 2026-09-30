@@ -7,6 +7,7 @@ import { useLanguage } from '../LanguageContext';
 import { translations } from '../translations';
 import { PageHeader, SearchInput, EmptyState, TableSkeleton, StatusBadge, useToast } from '../components/ui';
 import { formatMoney, formatDate, todayISO, rowDate, invoiceNumber, matches } from '../lib/format';
+import { DeleteRegularDialog } from '../components/RegularInvoiceDialogs';
 import { vehicleName } from '../lib/vehicle';
 
 const EMPTY_ITEM = { category: 'labor', description: '', price: '', quantity: 1, unit: 'pcs', cost_price: 0, inventory_id: null };
@@ -93,6 +94,7 @@ export default function Services() {
   const [newItem, setNewItem] = useState(EMPTY_ITEM);
   const [discount, setDiscount] = useState('');
   const [invoiceNotes, setInvoiceNotes] = useState('');
+  const [deletingRegular, setDeletingRegular] = useState(null);
 
   const money = v => formatMoney(v, currency);
 
@@ -191,12 +193,8 @@ export default function Services() {
   }
 
   async function handleDeleteService(id) {
-    const numbered = services.find(s => s.id === id)?.regular_number;
-    if (numbered) {
-      return toast.error(al
-        ? `Fatura e rregullt ${numbered} nuk mund të fshihet.`
-        : `Regular invoice ${numbered} cannot be deleted.`);
-    }
+    const job = services.find(s => s.id === id);
+    if (job?.regular_number) return setDeletingRegular(job);
     const msg = al
       ? 'Jeni i sigurt që dëshironi ta fshini këtë punë? Ky veprim nuk mund të zhbëhet.'
       : 'Delete this job? This cannot be undone.';
@@ -337,10 +335,15 @@ export default function Services() {
     });
   }, [services, search, timeFilter, statusFilter]);
 
+  const editingRegular = editId ? services.find(s => s.id === editId && s.regular_number) : null;
   const unitLabel = u => (al && u === 'pcs' ? 'copë' : al && u === 'hr' ? 'orë' : u);
 
   return (
     <div className="page">
+      {deletingRegular && (
+        <DeleteRegularDialog invoice={deletingRegular} al={al} isOnline={isOnline} onClose={() => setDeletingRegular(null)}
+          onDeleted={() => { setDeletingRegular(null); fetchData(); }} />
+      )}
       <PageHeader
         title={t.page_title_services}
         subtitle={t.page_desc_services}
@@ -386,6 +389,13 @@ export default function Services() {
               <div>
                 <label className="label">{al ? 'Data e shërbimit' : 'Service date'}</label>
                 <input type="date" className="input" value={serviceDate} onChange={e => setServiceDate(e.target.value)} />
+                {editingRegular && serviceDate && serviceDate.slice(0, 7) !== editingRegular.regular_period && (
+                  <p className="mt-1 text-xs text-amber-700">
+                    {al
+                      ? `Kjo është fatura e rregullt ${editingRegular.regular_number}. Në muaj tjetër ajo merr numrin e radhës së atij muaji.`
+                      : `This is regular invoice ${editingRegular.regular_number}. In another month it gets that month's next number.`}
+                  </p>
+                )}
               </div>
             </div>
 
