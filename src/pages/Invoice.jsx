@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { Printer, ArrowLeft, MessageCircle, FileCheck2, Hash, Trash2 } from 'lucide-react';
-import { ChangeNumberDialog, DeleteRegularDialog } from '../components/RegularInvoiceDialogs';
+import { ChangeNumberDialog, DeleteRegularDialog, ConvertToNormalDialog } from '../components/RegularInvoiceDialogs';
 import { useSync } from '../contexts/SyncContext'; 
 import { useLanguage } from '../LanguageContext'; // SHTUAR: Importo Context-in e gjuhës
 import { translations } from '../translations';
@@ -136,14 +136,10 @@ export default function Invoice() {
   }
 
   async function toggleRegular() {
-    if (regular && invoice.regular_number) {
-      return toast.error(al
-        ? `Fatura e rregullt ${invoice.regular_number} ka numër dhe nuk mund të kthehet në faturë normale.`
-        : `Regular invoice ${invoice.regular_number} has a number and cannot be turned back into a normal invoice.`);
-    }
+    if (regular && invoice.regular_number) return setDialog('normal');
     if (!regular && !window.confirm(al
-      ? 'Kjo faturë do të marrë numrin e radhës së faturave të rregullta. Pasi të marrë numër, nuk mund të kthehet në normale dhe nuk mund të fshihet. Vazhdo?'
-      : 'This invoice will get the next regular invoice number. Once numbered it cannot be turned back into a normal invoice or deleted. Continue?')) return;
+      ? 'Kjo faturë do të marrë numrin e radhës së faturave të rregullta. Vazhdo?'
+      : 'This invoice will get the next regular invoice number. Continue?')) return;
     const next = !regular;
     if (await saveField('is_regular_invoice', next)) setRegular(next);
   }
@@ -180,6 +176,16 @@ export default function Invoice() {
           onChanged={changes => {
             const updated = { ...invoice, ...changes };
             setInvoice(updated);
+            localStorage.setItem(`sonic_invoice_${id}`, JSON.stringify(updated));
+            setDialog(null);
+          }} />
+      )}
+      {dialog === 'normal' && (
+        <ConvertToNormalDialog invoice={invoice} al={al} isOnline={isOnline} onClose={() => setDialog(null)}
+          onConverted={() => {
+            const updated = { ...invoice, is_regular_invoice: false, regular_number: null, regular_seq: null, regular_period: null };
+            setInvoice(updated);
+            setRegular(false);
             localStorage.setItem(`sonic_invoice_${id}`, JSON.stringify(updated));
             setDialog(null);
           }} />
