@@ -58,7 +58,7 @@ export default function Maintenance() {
         const [carsRes, shopRes] = await Promise.all([
           supabase.from('cars').select('id, make, model, year, plate, engine, qr_token, clients(full_name, phone)')
             .eq('workshop_id', profile.workshop_id).order('plate'),
-          supabase.from('workshops').select('name, phone, logo_url').eq('id', profile.workshop_id).single(),
+          supabase.from('workshops').select('name, phone, logo_url, website, address, email').eq('id', profile.workshop_id).single(),
         ]);
         setCars(carsRes.data || []);
         setWorkshop(shopRes.data || null);
