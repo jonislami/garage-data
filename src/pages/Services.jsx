@@ -80,6 +80,7 @@ export default function Services() {
   const [inventory, setInventory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
   const [showForm, setShowForm] = useState(!!wantsNew);
   const [currency, setCurrency] = useState('€');
 
@@ -220,6 +221,8 @@ export default function Services() {
     if (lineItems.length === 0 && newItem.description) {
       return toast.error(al ? 'Klikoni "Shto" për të shtuar artikullin.' : 'Click "Add" to add the line item first.');
     }
+    if (savingRef.current) return; // ignore double taps while a save is running
+    savingRef.current = true;
     setSaving(true);
     try {
       let workshopId = localStorage.getItem('sonic_workshop_id');
@@ -278,11 +281,15 @@ export default function Services() {
       }
 
       let serviceId = editId;
+      let oldItemIds = [];
       if (editId) {
         const { error } = await supabase.from('services').update(payload).eq('id', editId);
         if (error) throw error;
-        const { error: delErr } = await supabase.from('service_items').delete().eq('service_id', editId);
-        if (delErr) throw delErr;
+        // Remember the old lines; they are removed only after the new ones are saved,
+        // so a failed save never leaves the invoice without lines
+        const { data: oldItems, error: oldErr } = await supabase.from('service_items').select('id').eq('service_id', editId);
+        if (oldErr) throw oldErr;
+        oldItemIds = (oldItems || []).map(i => i.id);
       } else {
         const { data: service, error } = await supabase.from('services').insert([payload]).select().single();
         if (error) throw error;
@@ -294,7 +301,15 @@ export default function Services() {
           service_id: serviceId, description: item.description, category: item.category,
           price: item.price, quantity: item.quantity, unit: item.unit, cost_price: item.cost_price,
         })));
-        if (error) throw error;
+        if (error) {
+          // A new job without its lines would be a wrong invoice: undo it
+          if (!editId) await supabase.from('services').delete().eq('id', serviceId);
+          throw error;
+        }
+      }
+      if (oldItemIds.length > 0) {
+        const { error: delErr } = await supabase.from('service_items').delete().in('id', oldItemIds);
+        if (delErr) throw delErr;
       }
 
       for (const item of lineItems) {
@@ -310,6 +325,7 @@ export default function Services() {
     } catch (error) {
       toast.error((al ? 'Gabim gjatë ruajtjes: ' : 'Error saving job: ') + error.message);
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   }
