@@ -386,7 +386,7 @@ export default function Settings() {
                 <div className="min-w-0">
                   <label className="btn btn-secondary cursor-pointer">
                     <Upload size={16} /> {al ? 'Ngarko logon' : 'Upload logo'}
-                    <input type="file" className="hidden" accept="image/*" onChange={e => setLogoFile(e.target.files[0])} />
+                    <input type="file" className="hidden" accept="image/png,image/jpeg,image/webp,image/gif" onChange={e => { const f = e.target.files[0]; if (f && f.size > 2 * 1024 * 1024) { toast.error(al ? 'Logoja duhet të jetë më e vogël se 2 MB.' : 'The logo must be smaller than 2 MB.'); e.target.value = ''; return; } setLogoFile(f); }} />
                   </label>
                   <p className="mt-1.5 text-xs text-gray-500 truncate">{logoFile ? logoFile.name : 'PNG / JPG, ' + (al ? 'mundësisht me sfond transparent' : 'ideally with a transparent background')}</p>
                 </div>
