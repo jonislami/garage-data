@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { supabase } from './lib/supabase';
+import { supabase, authLinkType } from './lib/supabase';
+import SetPassword from './components/SetPassword';
 import AuthForm from './components/Auth';
 import Sidebar from './components/Sidebar';
 import Dashboard from './pages/Dashboard';
@@ -43,6 +44,8 @@ function MainApp() {
   const [loading, setLoading] = useState(true);
   
   const [showAuth, setShowAuth] = useState(false);
+  // Opened from an invitation / password-reset email: ask for a password first
+  const [needsPassword, setNeedsPassword] = useState(authLinkType === 'invite' || authLinkType === 'recovery');
 
   const [trialEndDate, setTrialEndDate] = useState(null);
   const [showTrialBanner, setShowTrialBanner] = useState(true);
@@ -54,7 +57,8 @@ function MainApp() {
       else setLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY') setNeedsPassword(true);
       setSession(session);
       if (session) {
         setShowAuth(false);
@@ -143,6 +147,13 @@ function MainApp() {
       <p className="text-sm text-gray-500">{isAl ? 'Duke u ngarkuar…' : 'Loading…'}</p>
     </div>
   );
+
+  if (session && needsPassword) {
+    return <SetPassword invited={authLinkType === 'invite'} onDone={() => {
+      setNeedsPassword(false);
+      window.history.replaceState(null, '', window.location.pathname);
+    }} />;
+  }
 
   if (!session) {
     if (showAuth) {
