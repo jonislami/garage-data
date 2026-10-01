@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { supabase, authLinkType } from './lib/supabase';
 import { isSuperAdminEmail } from './lib/admin';
@@ -48,21 +48,26 @@ function MainApp() {
   const [trialEndDate, setTrialEndDate] = useState(null);
   const [showTrialBanner, setShowTrialBanner] = useState(true);
 
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      if (session) checkWorkshop(session.user);
-      else setLoading(false);
-    });
+  // Which user we last checked; a token refresh for the same user must not re-check
+  const checkedUserRef = useRef(null);
 
+  useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'PASSWORD_RECOVERY') setNeedsPassword(true);
       setSession(session);
       if (session) {
         setShowAuth(false);
-        checkWorkshop(session.user);
+        if (checkedUserRef.current !== session.user.id) {
+          checkedUserRef.current = session.user.id;
+          // Show the loading screen (not the setup page) until we know whether they have a garage
+          setHasWorkshop(null);
+          setLoading(true);
+          // Run outside the auth callback (calling Supabase inside it can stall the client)
+          setTimeout(() => checkWorkshop(session.user), 0);
+        }
       } else {
-        setHasWorkshop(false);
+        checkedUserRef.current = null;
+        setHasWorkshop(null);
         setIsAdmin(false);
         setIsSuspended(false);
         setLoading(false);
@@ -90,6 +95,7 @@ function MainApp() {
 
       if (profileError) {
         console.error("Gabim tek profili:", profileError);
+        throw profileError; // handled below: offline falls back to the saved garage
       }
 
       // --- ZGJIDHJA PËR LLOGARITË E FSHIRA ---
@@ -133,7 +139,9 @@ function MainApp() {
       }
     } catch (err) {
       console.error("Gabim i përgjithshëm:", err);
-      setHasWorkshop(false);
+      // No connection: keep working with the garage saved on this device instead of
+      // sending an existing user to the setup page
+      setHasWorkshop(localStorage.getItem('sonic_workshop_id') ? true : false);
     }
     
     setLoading(false);
@@ -184,6 +192,13 @@ function MainApp() {
        <button onClick={() => supabase.auth.signOut()} className="btn btn-primary btn-lg">
          {isAl ? 'Dil nga llogaria' : 'Log Out'}
        </button>
+    </div>
+  );
+
+  if (hasWorkshop === null) return (
+    <div className="h-screen flex flex-col items-center justify-center gap-3 bg-gray-100">
+      <div className="h-6 w-6 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin" />
+      <p className="text-sm text-gray-500">{isAl ? 'Duke u ngarkuar…' : 'Loading…'}</p>
     </div>
   );
 
