@@ -1,11 +1,13 @@
 import { supabase } from '../lib/supabase'
 import { Auth } from '@supabase/auth-ui-react'
 import { ThemeSupa } from '@supabase/auth-ui-shared'
+import { useState } from 'react'
 import { useLanguage } from '../LanguageContext'
 
 export default function AuthForm() {
   const { language } = useLanguage();
   const isAl = language === 'al';
+  const [view, setView] = useState('sign_in');
 
   // Ky funksion e detyron faqen të shkojë te "Kontakt" dhe ta mbyllë formën e logimit
   const handleContactClick = (e) => {
@@ -64,14 +66,29 @@ export default function AuthForm() {
                 password_input_placeholder: isAl ? 'Fjalëkalimi juaj' : 'Your password',
                 button_label: isAl ? 'Kyçu në Aplikacion' : 'Sign In',
                 loading_button_label: isAl ? 'Duke u kyçur...' : 'Signing in...',
+              },
+              forgotten_password: {
+                email_label: isAl ? 'Email Adresa' : 'Email Address',
+                email_input_placeholder: isAl ? 'emri@garazhi.com' : 'Your email address',
+                button_label: isAl ? 'Dërgo linkun për fjalëkalim të ri' : 'Send reset link',
+                loading_button_label: isAl ? 'Duke dërguar...' : 'Sending...',
+                confirmation_text: isAl ? 'Kontrolloni email-in për linkun e fjalëkalimit të ri.' : 'Check your email for the reset link.',
               }
             }
           }}
           providers={[]} 
           theme="light"
-          view="sign_in"        
+          view={view}
+          redirectTo={window.location.origin}
           showLinks={false}     // Fsheh butonin "Sign Up"
         />
+
+        <button type="button" onClick={() => setView(view === 'sign_in' ? 'forgotten_password' : 'sign_in')}
+          className="mt-1 text-sm text-blue-700 hover:underline">
+          {view === 'sign_in'
+            ? (isAl ? 'Keni harruar fjalëkalimin?' : 'Forgot your password?')
+            : (isAl ? '← Kthehu te kyçja' : '← Back to sign in')}
+        </button>
 
         {/* Pjesa ku ftojmë klientët të na kontaktojnë */}
         <div className="mt-6 pt-5 border-t border-gray-200 text-center">
