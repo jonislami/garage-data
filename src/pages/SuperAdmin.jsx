@@ -6,12 +6,11 @@ import {
   CalendarPlus, Save, UserPlus,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { SUPER_ADMIN_EMAIL } from '../lib/admin';
 import { useLanguage } from '../LanguageContext';
 import { useToast } from '../components/ui';
 import { formatDate, formatMoney, matches } from '../lib/format';
 
-// Keep in sync with SUPER_ADMIN_EMAIL in src/App.jsx, the admin-users function and is_super_admin()
-const SUPER_ADMIN_EMAIL = 'trilon1234@gmail.com';
 const DAY = 24 * 60 * 60 * 1000;
 
 // ---------------------------------------------------------------------------
