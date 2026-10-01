@@ -115,7 +115,7 @@ export default function Onboarding({ onComplete }) {
                         <span className="text-sm text-gray-500 text-center">{language === 'al' ? 'Kliko për të ngarkuar Logon e Ofiçinës' : 'Click to upload Workshop Logo'}</span>
                     </>
                 )}
-                <input type="file" accept="image/*" className="hidden" onChange={e => setLogoFile(e.target.files[0])} />
+                <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="hidden" onChange={e => { const f = e.target.files[0]; if (f && f.size > 2 * 1024 * 1024) { alert(language === 'al' ? 'Logoja duhet të jetë më e vogël se 2 MB.' : 'The logo must be smaller than 2 MB.'); e.target.value = ''; return; } setLogoFile(f); }} />
             </label>
           </div>
 

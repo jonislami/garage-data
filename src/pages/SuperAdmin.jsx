@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
-import { ShieldAlert, Building, Users, Plus, Trash2, Download, Car, FileText, Activity, PauseCircle, PlayCircle } from 'lucide-react';
+import { ShieldAlert, Building, Users, Plus, Trash2, Download, Car, FileText, Activity, PauseCircle, PlayCircle, Clock, BadgeCheck } from 'lucide-react';
 
 // CHANGE THIS TO YOUR EXACT EMAIL!
 const SUPER_ADMIN_EMAIL = 'trilon1234@gmail.com'; 
@@ -71,6 +71,23 @@ export default function SuperAdmin() {
         checkAdminAndFetchData();
       } catch (error) { alert("Error updating status: " + error.message); }
     }
+  }
+
+  // --- TRIAL / SUBSCRIPTION ---
+  // trial_ends_at = null means a paid, unlimited account; a date means trial/paid until that day
+  async function handleSetAccess(shop, mode) {
+    let trial_ends_at = null;
+    if (mode !== 'unlimited') {
+      const base = shop.trial_ends_at && new Date(shop.trial_ends_at) > new Date() ? new Date(shop.trial_ends_at) : new Date();
+      if (mode === 'month') base.setMonth(base.getMonth() + 1);
+      if (mode === 'year') base.setFullYear(base.getFullYear() + 1);
+      trial_ends_at = base.toISOString();
+    }
+    const label = mode === 'unlimited' ? 'unlimited (no end date)' : `until ${new Date(trial_ends_at).toLocaleDateString()}`;
+    if (!window.confirm(`Set access for ${shop.name} ${label}?`)) return;
+    const { error } = await supabase.from('workshops').update({ trial_ends_at, is_active: true }).eq('id', shop.id);
+    if (error) return alert('Error: ' + error.message);
+    checkAdminAndFetchData();
   }
 
   // --- DELETE GARAGE (Permanent) ---
@@ -167,6 +184,13 @@ export default function SuperAdmin() {
                       <p className="font-bold text-gray-900 text-lg truncate">{shop.name}</p>
                       {shop.is_active === false && <span className="text-[10px] bg-red-600 text-white font-semibold px-2 py-0.5 rounded uppercase tracking-widest">Suspended</span>}
                     </div>
+                    <p className="mt-1 text-xs flex items-center gap-1">
+                      {!shop.trial_ends_at
+                        ? <span className="text-emerald-700 flex items-center gap-1"><BadgeCheck size={13} /> Unlimited access</span>
+                        : new Date(shop.trial_ends_at) < new Date()
+                          ? <span className="text-red-700 flex items-center gap-1"><Clock size={13} /> Expired {new Date(shop.trial_ends_at).toLocaleDateString()}</span>
+                          : <span className="text-amber-700 flex items-center gap-1"><Clock size={13} /> Access until {new Date(shop.trial_ends_at).toLocaleDateString()}</span>}
+                    </p>
                     <div className="flex gap-4 mt-2">
                       <span className="text-xs font-bold text-gray-500 bg-white px-2 py-1 rounded border flex items-center gap-1"><Car size={12} className="text-blue-500"/> {shop.carCount} Cars</span>
                       <span className="text-xs font-bold text-gray-500 bg-white px-2 py-1 rounded border flex items-center gap-1"><FileText size={12} className="text-green-500"/> {shop.invoiceCount} Invoices</span>
@@ -179,6 +203,11 @@ export default function SuperAdmin() {
                       <Download size={16} /> Backup
                     </button>
                     
+                    {/* ACCESS: extend or make unlimited */}
+                    <button onClick={() => handleSetAccess(shop, 'month')} className="px-3 py-2 text-sm font-bold rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200" title="Extend by 1 month">+1 month</button>
+                    <button onClick={() => handleSetAccess(shop, 'year')} className="px-3 py-2 text-sm font-bold rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200" title="Extend by 1 year">+1 year</button>
+                    <button onClick={() => handleSetAccess(shop, 'unlimited')} className="px-3 py-2 text-sm font-bold rounded-lg bg-emerald-100 text-emerald-700 hover:bg-emerald-200" title="No end date">Unlimited</button>
+
                     {/* SUSPEND BUTTON */}
                     <button onClick={() => handleToggleSuspend(shop.id, shop.is_active, shop.name)} className={`px-3 py-2 text-sm font-bold rounded-lg transition-colors flex items-center gap-1 ${shop.is_active !== false ? 'bg-orange-100 text-orange-700 hover:bg-orange-200' : 'bg-green-100 text-green-700 hover:bg-green-200'}`}>
                       {shop.is_active !== false ? <><PauseCircle size={16} /> Suspend</> : <><PlayCircle size={16} /> Activate</>}

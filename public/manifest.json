@@ -1,15 +1,15 @@
 {
-  "short_name": "GarageDate",
-  "name": "GarageDate",
+  "short_name": "GarageData",
+  "name": "GarageData",
   "icons": [
     {
-      "src": "/applogo.png", 
-      "type": "image/svg+xml",
+      "src": "/applogo.png",
+      "type": "image/png",
       "sizes": "192x192"
     },
     {
       "src": "/applogo.png",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "sizes": "512x512"
     }
   ],
