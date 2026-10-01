@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
   WifiOff, FileText, ClipboardCheck, Package, ArrowRight, Phone, MessageSquare, ShieldCheck, Check,
-  BarChart3, QrCode, Receipt, CalendarDays, Wrench, ChevronDown, Smartphone, Languages, Gauge, AlertTriangle,
+  BarChart3, QrCode, Receipt, CalendarDays, Wrench, ChevronDown, Smartphone, Languages,
   UserPlus, Sparkles, Menu, X,
 } from 'lucide-react';
 import { useLanguage } from '../LanguageContext';
@@ -9,6 +9,27 @@ import { useLanguage } from '../LanguageContext';
 const PHONE_DISPLAY = '+383 48 323 740';
 const PHONE_LINK = '+38348323740';
 const WHATSAPP = 'https://wa.me/38348323740';
+
+// A screenshot inside a simple browser window
+function BrowserFrame({ src, alt, eager }) {
+  return (
+    <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-2xl shadow-blue-900/10">
+      <div className="flex items-center gap-1.5 border-b border-gray-200 bg-gray-50 px-3 py-2">
+        <span className="h-2.5 w-2.5 rounded-full bg-red-300" /><span className="h-2.5 w-2.5 rounded-full bg-amber-300" /><span className="h-2.5 w-2.5 rounded-full bg-emerald-300" />
+      </div>
+      <img src={src} alt={alt} width="1600" height="1000" className="block w-full h-auto" loading={eager ? 'eager' : 'lazy'} />
+    </div>
+  );
+}
+
+// A screenshot inside a phone outline
+function PhoneFrame({ src, alt, eager }) {
+  return (
+    <div className="overflow-hidden rounded-[1.6rem] border-[6px] border-gray-800 bg-gray-800 shadow-2xl">
+      <img src={src} alt={alt} width="585" height="1266" className="block w-full h-auto rounded-[1.1rem]" loading={eager ? 'eager' : 'lazy'} />
+    </div>
+  );
+}
 
 export default function LandingPage({ onLoginClick }) {
   const { language, setLanguage } = useLanguage();
@@ -38,12 +59,13 @@ export default function LandingPage({ onLoginClick }) {
   ];
 
   const gallery = [
-    { img: '/dashbordi.jpg', t: L('Ballina', 'Dashboard'), d: L('Të ardhurat e ditës, punët e hapura dhe muaji me një shikim.', 'Today’s revenue, open jobs and the month at a glance.') },
-    { img: '/Sherbimet.jpg', t: L('Punët', 'Jobs'), d: L('Ndiqni çdo riparim nga “në pritje” deri te “përfunduar”.', 'Track every repair from pending to completed.') },
-    { img: '/inventari.jpg', t: L('Inventari', 'Inventory'), d: L('Sasitë, kostot e blerjes dhe marzhet.', 'Stock levels, purchase costs and margins.') },
-    { img: '/veturat.jpg', t: L('Veturat', 'Vehicles'), d: L('Regjistroni veturat shpejt me dekodim të VIN-it.', 'Register vehicles quickly with VIN decoding.') },
-    { img: '/kilentet.jpg', t: L('Klientët', 'Clients'), d: L('Kontaktet dhe veturat e çdo klienti.', 'Contact details and vehicles for every customer.') },
-    { img: '/raportet.jpg', t: L('Raportet', 'Reports'), d: L('Të ardhurat dhe shpenzimet mujore e vjetore.', 'Monthly and yearly income and expenses.') },
+    { img: '/screens/ballina.webp', t: L('Ballina', 'Dashboard'), d: L('Të ardhurat e ditës, punët e hapura dhe muaji me një shikim.', 'Today’s revenue, open jobs and the month at a glance.') },
+    { img: '/screens/punet.webp', t: L('Punët', 'Jobs'), d: L('Ndiqni çdo riparim nga “në pritje” deri te “përfunduar”.', 'Track every repair from pending to completed.') },
+    { img: '/screens/fatura.webp', t: L('Fatura e rregullt', 'Regular invoice'), d: L('Nr. fiskal, nr. unik dhe TVSH për ju dhe blerësin, me numërim të veçantë çdo muaj.', 'Fiscal, unique and VAT numbers for you and the buyer, with monthly numbering.') },
+    { img: '/screens/servisi-qr.webp', t: L('Servisi & QR', 'Service & QR'), d: L('Çfarë u ndërrua, në sa km, dhe kur skadon çdo pjesë.', 'What was changed, at what mileage, and when each item is due.') },
+    { img: '/screens/inventari.webp', t: L('Inventari', 'Inventory'), d: L('Sasitë, kostot e blerjes dhe marzhet.', 'Stock levels, purchase costs and margins.') },
+    { img: '/screens/raportet.webp', t: L('Raportet', 'Reports'), d: L('Të ardhurat dhe shpenzimet sipas ditës dhe muajit.', 'Income and expenses by day and month.') },
+    { img: '/screens/klientet.webp', t: L('Klientët', 'Clients'), d: L('Kontaktet dhe veturat e çdo klienti, edhe klientë biznes.', 'Contact details and vehicles for every customer, including businesses.') },
   ];
 
   const steps = [
@@ -118,20 +140,16 @@ export default function LandingPage({ onLoginClick }) {
           </div>
 
           <div className="relative">
-            <img src="/dashbordi.jpg" alt="GarageData — kompjuter dhe telefon" className="w-full h-auto drop-shadow-xl" />
-            {/* Floating cards */}
-            <div className="hidden sm:flex absolute left-0 bottom-4 items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 shadow-lg">
+            <BrowserFrame src="/screens/ballina.webp" alt={L('GarageData — ballina', 'GarageData — dashboard')} eager />
+            <div className="absolute -bottom-8 right-2 sm:-right-4 w-[26%] min-w-[7rem] max-w-[11rem]">
+              <PhoneFrame src="/screens/qr-telefon.webp" alt={L('Faqja e QR në telefon', 'QR page on a phone')} eager />
+            </div>
+            {/* Floating card */}
+            <div className="hidden sm:flex absolute -left-4 -bottom-6 items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 shadow-lg">
               <span className="flex h-9 w-9 items-center justify-center rounded-md bg-emerald-50 text-emerald-600"><Receipt size={18} /></span>
               <div className="text-sm">
                 <p className="font-medium text-gray-900">{L('Faturë e rregullt', 'Regular invoice')}</p>
                 <p className="font-code text-xs text-gray-500">01/102026 · €145,00</p>
-              </div>
-            </div>
-            <div className="hidden sm:flex absolute right-0 top-2 items-center gap-3 rounded-lg border border-amber-200 bg-white px-4 py-3 shadow-lg">
-              <span className="flex h-9 w-9 items-center justify-center rounded-md bg-amber-50 text-amber-600"><AlertTriangle size={18} /></span>
-              <div className="text-sm">
-                <p className="font-medium text-gray-900">{L('Vaji i motorit', 'Engine oil')}</p>
-                <p className="text-xs text-amber-700">{L('edhe 550 km', '550 km left')}</p>
               </div>
             </div>
           </div>
@@ -197,40 +215,9 @@ export default function LandingPage({ onLoginClick }) {
             </ul>
           </div>
 
-          {/* Phone mock-up of the customer page */}
-          <div className="mx-auto w-full max-w-[19rem]">
-            <div className="rounded-[2.2rem] border-[10px] border-gray-700 bg-gray-100 shadow-2xl overflow-hidden text-gray-900">
-              <div className="px-4 pt-5 pb-6 space-y-3 text-left">
-                <div className="rounded-lg bg-white p-3 border border-gray-200">
-                  <p className="font-semibold text-sm">Volkswagen Golf (2014)</p>
-                  <div className="mt-1 flex items-center gap-2 text-[11px] text-gray-500">
-                    <span className="plate !text-[10px]">05-123-AB</span>
-                    <span className="flex items-center gap-1"><Gauge size={11} /> 195.900 km</span>
-                  </div>
-                </div>
-                <div className="rounded-lg border border-amber-300 bg-amber-50 p-3">
-                  <p className="flex items-center gap-1.5 text-xs font-semibold text-amber-900"><AlertTriangle size={13} /> {L('Kërkojnë vëmendje', 'Needs attention')}</p>
-                  <div className="mt-1.5 flex justify-between text-[11px]"><span>{L('Vaji i motorit', 'Engine oil')}</span><span className="text-red-700">{L('edhe 550 km', '550 km left')}</span></div>
-                  <div className="flex justify-between text-[11px]"><span>{L('Filteri i vajit', 'Oil filter')}</span><span className="text-amber-800">{L('edhe 550 km', '550 km left')}</span></div>
-                  <div className="mt-2 rounded-md bg-blue-700 py-1.5 text-center text-[11px] font-medium text-white">{L('Rezervo servisin', 'Book a service')}</div>
-                </div>
-                {[
-                  [L('Filteri i ajrit', 'Air filter'), '186.450 km', '206.450 km', 'ok'],
-                  [L('Pllakat e frenave', 'Brake pads'), '195.900 km', '225.900 km', 'ok'],
-                ].map(([n, a, b]) => (
-                  <div key={n} className="rounded-lg bg-white p-3 border border-gray-200">
-                    <div className="flex items-center justify-between">
-                      <p className="text-xs font-medium">{n}</p>
-                      <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/20">{L('Në rregull', 'OK')}</span>
-                    </div>
-                    <div className="mt-1.5 grid grid-cols-2 text-[10px] text-gray-500">
-                      <span>{L('Ndërruar', 'Changed')}<br /><span className="text-gray-900">{a}</span></span>
-                      <span>{L('Radha', 'Next')}<br /><span className="text-gray-900">{b}</span></span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+          {/* The real customer page on a phone */}
+          <div className="mx-auto w-full max-w-[17rem]">
+            <PhoneFrame src="/screens/qr-telefon.webp" alt={L('Faqja që sheh klienti kur skanon QR-në', 'The page the customer sees after scanning the QR')} />
           </div>
         </div>
       </section>
@@ -273,8 +260,8 @@ export default function LandingPage({ onLoginClick }) {
               </button>
             ))}
           </div>
-          <figure className="mt-6 rounded-2xl bg-white border border-gray-200 px-4 py-6 sm:px-10">
-            <img src={gallery[shot].img} alt={gallery[shot].t} className="mx-auto w-full max-w-3xl h-auto" loading="lazy" />
+          <figure className="mt-6">
+            <BrowserFrame src={gallery[shot].img} alt={gallery[shot].t} />
             <figcaption className="mt-4 text-center text-sm text-gray-600">{gallery[shot].d}</figcaption>
           </figure>
         </div>

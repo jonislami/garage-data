@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { SUPER_ADMIN_EMAIL } from '../lib/admin';
+import { isSuperAdminEmail } from '../lib/admin';
 import {
   LayoutDashboard, Users, Car, FileText, LogOut, Wrench, Package, Settings,
   ClipboardCheck, Menu, X, Languages, Receipt, ShieldAlert, CalendarDays,
@@ -34,7 +34,7 @@ export default function Sidebar() {
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (user) setEmail(user.email || '');
-      if (user && user.email === SUPER_ADMIN_EMAIL) setIsAdmin(true);
+      if (user && isSuperAdminEmail(user.email)) setIsAdmin(true);
     });
   }, []);
 
