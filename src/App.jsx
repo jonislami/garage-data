@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { supabase, authLinkType } from './lib/supabase';
-import { SUPER_ADMIN_EMAIL } from './lib/admin';
+import { isSuperAdminEmail } from './lib/admin';
 import SetPassword from './components/SetPassword';
 import AuthForm from './components/Auth';
 import Sidebar from './components/Sidebar';
@@ -73,7 +73,7 @@ function MainApp() {
   }, []);
 
   async function checkWorkshop(user) {
-    if (user.email === SUPER_ADMIN_EMAIL) {
+    if (isSuperAdminEmail(user.email)) {
       setIsAdmin(true);
       setHasWorkshop(true); 
       setIsSuspended(false);

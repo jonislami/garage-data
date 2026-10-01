@@ -6,7 +6,7 @@ import {
   CalendarPlus, Save, UserPlus,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { SUPER_ADMIN_EMAIL } from '../lib/admin';
+import { isSuperAdminEmail } from '../lib/admin';
 import { useLanguage } from '../LanguageContext';
 import { useToast } from '../components/ui';
 import { formatDate, formatMoney, matches } from '../lib/format';
@@ -104,7 +104,7 @@ export default function SuperAdmin() {
   useEffect(() => {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user || user.email !== SUPER_ADMIN_EMAIL) { navigate('/'); return; }
+      if (!user || !isSuperAdminEmail(user.email)) { navigate('/'); return; }
       setAllowed(true);
       load();
     })();
@@ -585,7 +585,7 @@ function UsersTab({ data, shopsById, al, L, toast, reload, onInvite }) {
             </thead>
             <tbody>
               {list.map(u => {
-                const isAdmin = u.email === SUPER_ADMIN_EMAIL;
+                const isAdmin = isSuperAdminEmail(u.email);
                 return (
                   <tr key={u.id} className="hover:!bg-transparent">
                     <td className="font-medium text-gray-900">
