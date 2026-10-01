@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { supabase, authLinkType } from './lib/supabase';
+import { SUPER_ADMIN_EMAIL } from './lib/admin';
 import SetPassword from './components/SetPassword';
 import AuthForm from './components/Auth';
 import Sidebar from './components/Sidebar';
@@ -29,9 +30,6 @@ import VehicleQR from './pages/VehicleQR';
 
 import LandingPage from './pages/LandingPage';
 
-// --- VENDOS EMAIL-IN TËND KËTU (Super Admin) ---
-// Also set in supabase/migrations/20260928_security_hardening.sql (is_super_admin)
-const SUPER_ADMIN_EMAIL = 'trilon1234@gmail.com';
 
 function MainApp() {
   const { language } = useLanguage();

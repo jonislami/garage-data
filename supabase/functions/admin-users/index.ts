@@ -2,8 +2,8 @@
 // Runs with the service role; every request is checked against the super admin email.
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 
-// Keep in sync with SUPER_ADMIN_EMAIL in src/App.jsx and public.is_super_admin()
-const SUPER_ADMIN_EMAIL = 'trilon1234@gmail.com';
+// Keep in sync with src/lib/admin.js and public.is_super_admin()
+const SUPER_ADMIN_EMAIL = 'jonislami72@gmail.com';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',

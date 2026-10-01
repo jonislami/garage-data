@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { SUPER_ADMIN_EMAIL } from '../lib/admin';
 import {
   LayoutDashboard, Users, Car, FileText, LogOut, Wrench, Package, Settings,
   ClipboardCheck, Menu, X, Languages, Receipt, ShieldAlert, CalendarDays,
@@ -9,8 +10,6 @@ import {
 import { useLanguage } from '../LanguageContext';
 import { useSync } from '../contexts/SyncContext';
 
-// CHANGE THIS TO YOUR EXACT EMAIL!
-const SUPER_ADMIN_EMAIL = 'trilon1234@gmail.com';
 
 function Logo() {
   return (
