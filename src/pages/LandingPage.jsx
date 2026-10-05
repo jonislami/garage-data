@@ -383,6 +383,10 @@ export default function LandingPage({ onLoginClick }) {
           <div className="flex gap-4">
             <a href={`tel:${PHONE_LINK}`} className="hover:text-gray-900">{PHONE_DISPLAY}</a>
             <a href={WHATSAPP} target="_blank" rel="noreferrer" className="hover:text-gray-900">WhatsApp</a>
+            <span>
+              {L('Zhvilluar nga', 'Developed by')}{' '}
+              <a href="https://stc-ks.com" target="_blank" rel="noopener noreferrer" className="font-medium text-gray-700 hover:underline">stc-ks.com</a>
+            </span>
           </div>
         </div>
       </footer>

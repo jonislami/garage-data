@@ -249,6 +249,10 @@ function MainApp() {
             <Route path="/admin" element={<SuperAdmin />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
+          <footer className="py-4 text-center text-xs text-gray-400 print:hidden">
+            {isAl ? 'Zhvilluar nga' : 'Developed by'}{' '}
+            <a href="https://stc-ks.com" target="_blank" rel="noopener noreferrer" className="hover:underline">stc-ks.com</a>
+          </footer>
         </main>
       </div>
       
