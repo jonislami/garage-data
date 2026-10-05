@@ -2,7 +2,7 @@ import { useState } from 'react';
 import {
   WifiOff, FileText, ClipboardCheck, Package, ArrowRight, Phone, MessageSquare, ShieldCheck, Check,
   BarChart3, QrCode, Receipt, CalendarDays, Wrench, ChevronDown, Smartphone, Languages,
-  UserPlus, Sparkles, Menu, X,
+  UserPlus, Sparkles, Menu, X, Monitor, Share, PlusSquare, MoreVertical, Download,
 } from 'lucide-react';
 import { useLanguage } from '../LanguageContext';
 import InstallApp from '../components/InstallApp';
@@ -44,6 +44,7 @@ export default function LandingPage({ onLoginClick }) {
     { id: 'features', label: L('Veçoritë', 'Features') },
     { id: 'qr', label: L('Servisi me QR', 'QR service') },
     { id: 'how', label: L('Si funksionon', 'How it works') },
+    { id: 'install', label: L('Shkarko', 'Install') },
     { id: 'faq', label: L('Pyetje', 'FAQ') },
     { id: 'contact', label: L('Kontakti', 'Contact') },
   ];
@@ -75,8 +76,37 @@ export default function LandingPage({ onLoginClick }) {
     { icon: Wrench, title: L('Filloni punën', 'Start working'), desc: L('Fletë pune, fatura, stok dhe QR për çdo veturë — nga dita e parë.', 'Job cards, invoices, stock and a QR for every vehicle — from day one.') },
   ];
 
+  const installGuides = [
+    {
+      icon: Smartphone, title: 'iPhone / iPad', note: L('Vetëm me Safari', 'Safari only'),
+      steps: [
+        <>{L('Hapni', 'Open')} <b>Safari</b> {L('dhe shkoni te kjo faqe', 'and go to this page')}</>,
+        <>{L('Prekni butonin', 'Tap the')} <Share size={15} className="inline -mt-0.5 text-blue-600" /> <b>{L('Ndaj (Share)', 'Share')}</b> {L('poshtë në mes', 'button at the bottom')}</>,
+        <>{L('Rrëshqitni poshtë dhe prekni', 'Scroll down and tap')} <PlusSquare size={15} className="inline -mt-0.5" /> <b>{L('Shto në ekranin bazë', 'Add to Home Screen')}</b></>,
+        <>{L('Prekni', 'Tap')} <b>{L('Shto (Add)', 'Add')}</b> {L('lart djathtas', 'in the top right')}</>,
+      ],
+    },
+    {
+      icon: Smartphone, title: 'Android', note: L('Me Chrome', 'With Chrome'),
+      steps: [
+        <>{L('Hapni', 'Open')} <b>Chrome</b> {L('dhe shkoni te kjo faqe', 'and go to this page')}</>,
+        <>{L('Prekni', 'Tap')} <Download size={15} className="inline -mt-0.5 text-blue-600" /> <b>{L('Shkarko aplikacionin', 'Install the app')}</b></>,
+        <>{L('Ose: menyja', 'Or: the')} <MoreVertical size={15} className="inline -mt-0.5" /> {L('lart djathtas →', 'menu (top right) →')} <b>{L('Instalo aplikacionin', 'Install app')}</b></>,
+        <>{L('Prekni', 'Tap')} <b>{L('Instalo', 'Install')}</b></>,
+      ],
+    },
+    {
+      icon: Monitor, title: L('Kompjuter', 'Computer'), note: 'Chrome / Edge',
+      steps: [
+        <>{L('Hapni këtë faqe në', 'Open this page in')} <b>Chrome</b> {L('ose', 'or')} <b>Edge</b></>,
+        <>{L('Klikoni', 'Click')} <Download size={15} className="inline -mt-0.5 text-blue-600" /> <b>{L('Shkarko aplikacionin', 'Install the app')}</b> {L('ose ikonën e instalimit në shiritin e adresës', 'or the install icon in the address bar')}</>,
+        <>{L('Klikoni', 'Click')} <b>{L('Instalo', 'Install')}</b></>,
+        <>{L('Aplikacioni hapet në dritaren e vet, me ikonë në desktop', 'The app opens in its own window, with a desktop icon')}</>,
+      ],
+    },
+  ];
   const faqs = [
-    { q: L('A duhet të instaloj diçka?', 'Do I need to install anything?'), a: L('Jo. GarageData hapet në shfletues në kompjuter, tabletë ose telefon. Me butonin “Shkarko aplikacionin” e instaloni në kompjuter ose telefon dhe hapet si aplikacion, me ikonën e vet.', 'No. GarageData runs in the browser on a computer, tablet or phone. With the “Install the app” button it installs on a computer or phone and opens like an app, with its own icon.') },
+    { q: L('A duhet të instaloj diçka?', 'Do I need to install anything?'), a: L('Jo. GarageData hapet në shfletues në kompjuter, tabletë ose telefon. Me butonin “Shkarko aplikacionin” e instaloni në kompjuter ose telefon dhe hapet si aplikacion, me ikonën e vet. Hapat për iPhone, Android dhe kompjuter i gjeni te pjesa “Shkarko aplikacionin” më lart.', 'No. GarageData runs in the browser on a computer, tablet or phone. With the “Install the app” button it installs on a computer or phone and opens like an app, with its own icon. The steps for iPhone, Android and computer are in the “Install the app” section above.') },
     { q: L('Çfarë ndodh kur nuk ka internet?', 'What happens without internet?'), a: L('Vazhdoni të punoni normalisht. Ndryshimet ruhen në pajisje dhe sinkronizohen automatikisht kur kthehet interneti.', 'You keep working normally. Changes are stored on the device and sync automatically when the connection is back.') },
     { q: L('A janë të sigurta të dhënat e mia?', 'Is my data safe?'), a: L('Çdo ofiçinë sheh vetëm të dhënat e veta. Të dhënat ruhen në server të sigurt dhe mund të shkarkoni kopje rezervë kurdo.', 'Each workshop sees only its own data. Data is stored on secure servers and you can download a backup at any time.') },
     { q: L('Si funksionon QR kodi i veturës?', 'How does the vehicle QR code work?'), a: L('Printoni një herë stikerin për veturën. Sa herë që regjistroni servis të ri, faqja e QR përditësohet vetë — pa printuar QR të ri.', 'Print the sticker once per vehicle. Every time you record a new service, the QR page updates itself — no new QR needed.') },
@@ -267,6 +297,39 @@ export default function LandingPage({ onLoginClick }) {
             <BrowserFrame src={gallery[shot].img} alt={gallery[shot].t} />
             <figcaption className="mt-4 text-center text-sm text-gray-600">{gallery[shot].d}</figcaption>
           </figure>
+        </div>
+      </section>
+
+      {/* INSTALL */}
+      <section id="install" className="py-16 md:py-24 border-b border-gray-200 scroll-mt-16">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6">
+          <div className="max-w-2xl mb-10">
+            <p className="text-sm font-medium text-blue-700">{L('Shkarko aplikacionin', 'Install the app')}</p>
+            <h2 className="mt-2 text-3xl md:text-4xl font-semibold tracking-tight">{L('Në telefon dhe kompjuter, direkt nga shfletuesi', 'On your phone and computer, straight from the browser')}</h2>
+            <p className="mt-3 text-gray-600 leading-relaxed">{L('Pa App Store dhe pa skedarë për shkarkim. GarageData merr ikonën e vet, hapet si aplikacion dhe përditësohet vetë.', 'No App Store and no files to download. GarageData gets its own icon, opens like an app and updates itself.')}</p>
+            <div className="mt-5"><InstallApp al={al} className="btn btn-primary btn-lg" /></div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {installGuides.map(g => (
+              <div key={g.title} className="rounded-xl border border-gray-200 p-6">
+                <div className="flex items-center gap-3">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-900 text-white"><g.icon size={19} /></span>
+                  <div>
+                    <h3 className="font-semibold text-gray-900">{g.title}</h3>
+                    <p className="text-xs text-gray-500">{g.note}</p>
+                  </div>
+                </div>
+                <ol className="mt-5 space-y-3 text-sm text-gray-700">
+                  {g.steps.map((step, idx) => (
+                    <li key={idx} className="flex gap-2.5">
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-50 text-xs font-semibold text-blue-700">{idx + 1}</span>
+                      <span className="pt-0.5 leading-relaxed">{step}</span>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 

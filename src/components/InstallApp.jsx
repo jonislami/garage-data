@@ -39,7 +39,7 @@ export default function InstallApp({ al, className = 'btn btn-secondary', label 
               </li>
               <li className="flex items-center gap-2.5">
                 <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gray-900 text-xs font-semibold text-white">3</span>
-                <span className="flex items-center gap-1.5">{al ? 'Zgjidhni' : 'Choose'} <PlusSquare size={16} /> <b>{al ? 'Shto në ekranin kryesor' : 'Add to Home Screen'}</b></span>
+                <span className="flex items-center gap-1.5">{al ? 'Zgjidhni' : 'Choose'} <PlusSquare size={16} /> <b>{al ? 'Shto në ekranin bazë' : 'Add to Home Screen'}</b></span>
               </li>
             </ol>
             <p className="mt-4 text-xs text-gray-500">{al ? 'Ikona e GarageData shfaqet në ekran dhe hapet si aplikacion.' : 'The GarageData icon appears on your home screen and opens like an app.'}</p>
