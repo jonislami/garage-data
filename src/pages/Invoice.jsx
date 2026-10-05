@@ -9,6 +9,7 @@ import { translations } from '../translations';
 import { useToast } from '../components/ui';
 import { formatMoney, formatDate, invoiceNumber } from '../lib/format';
 import { vehicleName } from '../lib/vehicle';
+import { fileName, usePrintTitle } from '../lib/print';
 
 export default function Invoice() {
   const { id } = useParams();
@@ -80,6 +81,14 @@ export default function Invoice() {
     fetchInvoice();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, isOnline]);
+
+  // PDF file name starts with the client, so saved invoices are easy to find
+  usePrintTitle(invoice && fileName(
+    invoice.cars?.clients?.full_name || (al ? 'Klient' : 'Client'),
+    `${al ? 'Fatura' : 'Invoice'} ${invoiceNumber(invoice).replace(/^#/, '')}`,
+    invoice.cars?.plate,
+    formatDate(invoice.service_date || invoice.created_at),
+  ));
 
   if (loading) return (
     <div className="page max-w-4xl space-y-3">
