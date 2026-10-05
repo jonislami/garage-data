@@ -5,6 +5,8 @@ import { Printer, ArrowLeft, CheckCircle, AlertTriangle, XCircle } from 'lucide-
 import { useLanguage } from '../LanguageContext'; // SHTUAR: Importo Context-in e gjuhës
 import { translations } from '../translations';
 import { useToast } from '../components/ui';
+import { formatDate } from '../lib/format';
+import { fileName, usePrintTitle } from '../lib/print';
 
 // SAME DICTIONARY AS THE EDITOR
 const CAR_DIAGRAMS = {
@@ -44,6 +46,14 @@ export default function InspectionReport() {
     fetchReport();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, navigate]);
+
+  // PDF file name starts with the client, so saved reports are easy to find
+  usePrintTitle(data && fileName(
+    data.cars?.clients?.full_name || (language === 'al' ? 'Klient' : 'Client'),
+    language === 'al' ? 'Inspektimi' : 'Inspection',
+    data.cars?.plate,
+    formatDate(data.created_at),
+  ));
 
   if (loading) return <div className="p-8 text-center">{language === 'al' ? 'Duke ngarkuar raportin...' : 'Loading Report...'}</div>;
   if (!data) return <div className="p-8 text-center">{language === 'al' ? 'Raporti nuk u gjet.' : 'Report not found.'}</div>;

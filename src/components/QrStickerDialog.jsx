@@ -4,6 +4,7 @@ import { X, Printer, Copy, Download, Phone, Globe, MapPin, Loader2 } from 'lucid
 import { useToast } from './ui';
 import { vehicleName } from '../lib/vehicle';
 import { vehicleQrUrl } from '../lib/maintenance';
+import { fileName } from '../lib/print';
 
 const escapeHtml = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -55,7 +56,7 @@ export default function QrStickerDialog({ car, workshop, al, onClose }) {
   const contacts = [shop.phone, shop.website, shop.address].filter(Boolean);
 
   function stickerHtml() {
-    return `<!doctype html><html><head><meta charset="utf-8"><title>QR ${escapeHtml(car.plate || '')}</title>
+    return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(fileName(car.clients?.full_name, 'QR', car.plate) || 'QR')}</title>
       <style>
         @page { size: 70mm 100mm; margin: 0; }
         * { box-sizing: border-box; }
@@ -91,10 +92,13 @@ export default function QrStickerDialog({ car, workshop, al, onClose }) {
     const doc = frame.contentDocument;
     doc.open(); doc.write(stickerHtml()); doc.close();
     const images = [...doc.images].map(i => (i.complete ? null : new Promise(r => { i.onload = i.onerror = r; })));
+    // Some browsers name the PDF after the main page title, so set it too while printing
+    const previousTitle = document.title;
+    document.title = doc.title;
     Promise.all(images).then(() => setTimeout(() => {
       frame.contentWindow.focus();
       frame.contentWindow.print();
-      setTimeout(() => frame.remove(), 1000);
+      setTimeout(() => { frame.remove(); document.title = previousTitle; }, 1000);
     }, 150));
   }
 
@@ -154,7 +158,7 @@ export default function QrStickerDialog({ car, workshop, al, onClose }) {
       catch { href = src; toast.info(al ? 'Logoja nuk u përfshi në PNG; u shkarkua vetëm QR kodi.' : 'The logo could not be included; only the QR code was downloaded.'); }
       const a = document.createElement('a');
       a.href = href;
-      a.download = `QR-${(car.plate || car.id).replace(/\s+/g, '')}.png`;
+      a.download = `${fileName(car.clients?.full_name, 'QR', car.plate || car.id)}.png`;
       a.click();
     } finally {
       setDownloading(false);
