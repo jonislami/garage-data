@@ -7,28 +7,25 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png'],
+      includeAssets: ['icons/favicon-32.png', 'icons/favicon-48.png', 'icons/apple-touch-icon.png'],
+      // The one app description (web manifest) used when installing GarageData
       manifest: {
+        id: '/',
         name: 'GarageData',
         short_name: 'GarageData',
-        description: 'Professional Garage Management',
-        theme_color: '#111827', /* Dark gray to match your top bar */
+        description: 'Punët, faturat, stoku dhe historia e servisit për ofiçinën tuaj.',
+        lang: 'sq',
+        start_url: '/',
+        scope: '/',
+        display: 'standalone', // opens in its own window, without the browser bar
+        theme_color: '#111827',
         background_color: '#ffffff',
-        display: 'standalone', /* This hides the browser address bar! */
         icons: [
-          {
-            src: '/applogo.png',
-            sizes: '192x192',
-            type: 'image/png'
-          },
-          {
-            src: '/applogo.png',
-            sizes: '512x512',
-            type: 'image/png',
-            purpose: 'any maskable'
-          }
-        ]
-      }
+          { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: '/icons/maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+        ],
+      },
     })
   ]
 })

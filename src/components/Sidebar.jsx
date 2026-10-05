@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { useLanguage } from '../LanguageContext';
 import { useSync } from '../contexts/SyncContext';
+import InstallApp from './InstallApp';
 
 
 function Logo() {
@@ -133,6 +134,7 @@ export default function Sidebar() {
         </nav>
 
         <div className="border-t border-gray-800 px-2.5 py-3 shrink-0 space-y-px">
+          <InstallApp al={al} className="flex w-full items-center gap-2.5 h-8 px-2.5 rounded-md text-[13.5px] text-blue-300 hover:bg-white/5 hover:text-blue-200" />
           <div className={`flex items-center gap-2 h-7 px-2.5 text-xs ${status.cls}`}>
             <span className={`h-1.5 w-1.5 rounded-full ${status.dot}`} />
             <status.icon size={13} className={status.spin ? 'animate-spin' : ''} />
