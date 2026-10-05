@@ -5,6 +5,7 @@ import {
   UserPlus, Sparkles, Menu, X,
 } from 'lucide-react';
 import { useLanguage } from '../LanguageContext';
+import InstallApp from '../components/InstallApp';
 
 const PHONE_DISPLAY = '+383 48 323 740';
 const PHONE_LINK = '+38348323740';
@@ -75,7 +76,7 @@ export default function LandingPage({ onLoginClick }) {
   ];
 
   const faqs = [
-    { q: L('A duhet të instaloj diçka?', 'Do I need to install anything?'), a: L('Jo. GarageData hapet në shfletues në kompjuter, tabletë ose telefon. Mund ta shtoni edhe si aplikacion në ekranin kryesor.', 'No. GarageData runs in the browser on a computer, tablet or phone. You can also add it to your home screen like an app.') },
+    { q: L('A duhet të instaloj diçka?', 'Do I need to install anything?'), a: L('Jo. GarageData hapet në shfletues në kompjuter, tabletë ose telefon. Me butonin “Shkarko aplikacionin” e instaloni në kompjuter ose telefon dhe hapet si aplikacion, me ikonën e vet.', 'No. GarageData runs in the browser on a computer, tablet or phone. With the “Install the app” button it installs on a computer or phone and opens like an app, with its own icon.') },
     { q: L('Çfarë ndodh kur nuk ka internet?', 'What happens without internet?'), a: L('Vazhdoni të punoni normalisht. Ndryshimet ruhen në pajisje dhe sinkronizohen automatikisht kur kthehet interneti.', 'You keep working normally. Changes are stored on the device and sync automatically when the connection is back.') },
     { q: L('A janë të sigurta të dhënat e mia?', 'Is my data safe?'), a: L('Çdo ofiçinë sheh vetëm të dhënat e veta. Të dhënat ruhen në server të sigurt dhe mund të shkarkoni kopje rezervë kurdo.', 'Each workshop sees only its own data. Data is stored on secure servers and you can download a backup at any time.') },
     { q: L('Si funksionon QR kodi i veturës?', 'How does the vehicle QR code work?'), a: L('Printoni një herë stikerin për veturën. Sa herë që regjistroni servis të ri, faqja e QR përditësohet vetë — pa printuar QR të ri.', 'Print the sticker once per vehicle. Every time you record a new service, the QR page updates itself — no new QR needed.') },
@@ -89,7 +90,7 @@ export default function LandingPage({ onLoginClick }) {
       <header className="sticky top-0 z-50 bg-white/90 backdrop-blur border-b border-gray-200">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
           <a href="#" className="flex items-center gap-2.5 shrink-0">
-            <img src="/applogo.png" alt="" className="h-8 w-8 object-contain" />
+            <img src="/icons/icon-192.png" alt="" className="h-8 w-8 object-contain" />
             <span className="text-base font-semibold tracking-tight">Garage<span className="text-blue-600">Data</span></span>
           </a>
           <nav className="hidden lg:flex items-center gap-6 text-sm text-gray-600">
@@ -97,6 +98,7 @@ export default function LandingPage({ onLoginClick }) {
           </nav>
           <div className="flex items-center gap-2">
             <button onClick={() => setLanguage(al ? 'en' : 'al')} className="btn btn-ghost btn-sm font-code" aria-label="Language">{al ? 'EN' : 'SQ'}</button>
+            <InstallApp al={al} className="btn btn-ghost hidden md:inline-flex" label={L('Shkarko', 'Install')} />
             <a href="#contact" className="btn btn-secondary hidden sm:inline-flex">{L('Provë falas', 'Free trial')}</a>
             <button onClick={onLoginClick} className="btn btn-primary">{L('Kyçu', 'Log in')}</button>
             <button onClick={() => setMenuOpen(o => !o)} className="btn-icon lg:hidden" aria-label="Menu">{menuOpen ? <X size={18} /> : <Menu size={18} />}</button>
@@ -131,6 +133,7 @@ export default function LandingPage({ onLoginClick }) {
             <div className="mt-8 flex flex-col sm:flex-row gap-3">
               <a href={WHATSAPP} target="_blank" rel="noreferrer" className="btn btn-primary btn-lg"><MessageSquare size={16} /> {L('Kërko provë falas', 'Request a free trial')}</a>
               <a href="#qr" className="btn btn-secondary btn-lg">{L('Shiko si funksionon', 'See how it works')} <ArrowRight size={16} /></a>
+              <InstallApp al={al} className="btn btn-secondary btn-lg" />
             </div>
             <ul className="mt-6 flex flex-wrap gap-x-5 gap-y-2 text-sm text-gray-600">
               {[L('Provë falas', 'Free trial'), L('Ju ndihmojmë me fillimin', 'We help you get started'), L('Në shqip', 'In Albanian')].map(x => (
@@ -311,7 +314,7 @@ export default function LandingPage({ onLoginClick }) {
       <footer className="border-t border-gray-200">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 flex flex-col sm:flex-row justify-between gap-4 text-sm text-gray-500">
           <div className="flex items-center gap-2">
-            <img src="/applogo.png" alt="" className="h-6 w-6 object-contain" />
+            <img src="/icons/icon-192.png" alt="" className="h-6 w-6 object-contain" />
             <span>© {new Date().getFullYear()} GarageData · {L('Softuer për servise dhe ofiçina', 'Software for auto repair shops')}</span>
           </div>
           <div className="flex gap-4">
